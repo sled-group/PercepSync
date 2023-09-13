@@ -16,6 +16,7 @@ repos:
       - id: pretty-format-json
         args: ["--autofix"]
       - id: mixed-line-ending
+
   - repo: local
     hooks:
       - id: dotnet-tool-restore
@@ -37,3 +38,39 @@ repos:
         types:
           - c#
         description: CSharpier is an opinionated C# formatter inspired by Prettier.
+
+  # yaml formatting
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v3.0.3
+    hooks:
+      - id: prettier
+        types: [yaml]
+
+  # shell scripts linter
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.9.0.5
+    hooks:
+      - id: shellcheck
+
+  # md formatting
+  - repo: https://github.com/executablebooks/mdformat
+    rev: 0.7.17
+    hooks:
+      - id: mdformat
+        args: ["--number"]
+        additional_dependencies:
+          - mdformat-gfm
+          - mdformat-tables
+          - mdformat_frontmatter
+          # - mdformat-toc
+          # - mdformat-black
+
+  # word spelling linter
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.2.5
+    hooks:
+      - id: codespell
+        args:
+          - -L rouge
+        additional_dependencies:
+          - tomli
