@@ -20,3 +20,12 @@ $ dotnet tool restore
 #### Code Formatter
 
 We use [CSharpier](https://csharpier.com/) as our automatic code-formatter. It is automatically run against every commit as part of pre-commit hooks. However, it is highly recommended that you set up your text editor or IDE to run it automatically after each save. For VSCode, you can install the [official extension](https://marketplace.visualstudio.com/items?itemName=csharpier.csharpier-vscode).
+
+## Device Name and IDs
+
+### Video
+
+### Audio
+
+Run `pacmd list-sources` and figure out the following information.
+Format = `plughw:<alsa.card>,<alsa.device>`
