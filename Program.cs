@@ -9,7 +9,7 @@
     /// <summary>
     /// PercepSync synchronizes streams of data from different perceptions and broadcast them.
     /// </summary>
-    public class PercepSync
+    public class Program
     {
         private static Pipeline? percepSyncPipeline = null!;
         private static VideoPlayer? videoPlayer = null;
