@@ -5,6 +5,10 @@
     using Microsoft.Psi;
     using Microsoft.Psi.Media;
     using Microsoft.Psi.Audio;
+    using NetMQ;
+    using NetMQ.Sockets;
+    using MessagePack;
+    using Microsoft.Psi.Imaging;
 
     /// <summary>
     /// PercepSync synchronizes streams of data from different perceptions and broadcast them.
@@ -13,6 +17,7 @@
     {
         private static Pipeline? percepSyncPipeline = null!;
         private static VideoPlayer? videoPlayer = null;
+        private static PublisherSocket? pubSocket = null;
 
         public static void Main()
         {
@@ -38,7 +43,7 @@
                 {
                     case ConsoleKey.Q:
                     case ConsoleKey.Enter:
-                        StopComputeServerPipeline("Server manually stopped");
+                        StopPercepSync("PercepSync manually stopped");
                         Environment.Exit(0);
                         break;
                     case ConsoleKey.V:
@@ -92,6 +97,31 @@
                 .Select((data) => new DisplayInput(data.Item1, data.Item2))
                 .PipeTo(videoPlayer);
 
+            // Connect to zeromq publisher socket
+            pubSocket = new PublisherSocket();
+            pubSocket.Bind("tcp://*:12345");
+            webcam.Do(
+                (image, e) =>
+                {
+                    var bgra32Image = image.Resource.Convert(PixelFormat.BGRA_32bpp);
+                    var imageBuffer = new byte[bgra32Image.Size];
+                    bgra32Image.CopyTo(imageBuffer);
+                    pubSocket
+                        .SendMoreFrame("video_frame")
+                        .SendFrame(
+                            MessagePackSerializer.Serialize(
+                                new ImageMessage
+                                {
+                                    OriginatingTime = e.OriginatingTime,
+                                    PixelData = imageBuffer,
+                                    Width = bgra32Image.Width,
+                                    Height = bgra32Image.Height,
+                                }
+                            )
+                        );
+                }
+            );
+
             // Start the pipeline running
             percepSyncPipeline.RunAsync();
         }
@@ -116,17 +146,28 @@
             );
         }
 
-        private static void StopComputeServerPipeline(string message)
+        private static void StopPercepSync(string message)
         {
-            if (percepSyncPipeline != null)
+            if (percepSyncPipeline is not null)
             {
-                percepSyncPipeline?.Dispose();
-                if (percepSyncPipeline != null)
+                percepSyncPipeline.Dispose();
+                if (percepSyncPipeline is not null)
                 {
                     Console.WriteLine("Stopped Capture Server Pipeline.");
                 }
 
                 percepSyncPipeline = null;
+            }
+
+            if (pubSocket is not null)
+            {
+                pubSocket.Dispose();
+                if (pubSocket is not null)
+                {
+                    Console.WriteLine("Stopped ZeroMQ Publisher Socket.");
+                }
+
+                pubSocket = null;
             }
         }
     }
