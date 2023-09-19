@@ -5,10 +5,9 @@
     using Microsoft.Psi;
     using Microsoft.Psi.Media;
     using Microsoft.Psi.Audio;
-    using NetMQ;
-    using NetMQ.Sockets;
-    using MessagePack;
     using Microsoft.Psi.Imaging;
+    using Microsoft.Psi.Interop.Transport;
+    using Microsoft.Psi.Interop.Format;
 
     /// <summary>
     /// PercepSync synchronizes streams of data from different perceptions and broadcast them.
@@ -17,7 +16,6 @@
     {
         private static Pipeline? percepSyncPipeline = null!;
         private static VideoPlayer? videoPlayer = null;
-        private static PublisherSocket? pubSocket = null;
 
         public static void Main()
         {
@@ -98,29 +96,27 @@
                 .PipeTo(videoPlayer);
 
             // Connect to zeromq publisher socket
-            pubSocket = new PublisherSocket();
-            pubSocket.Bind("tcp://*:12345");
-            webcam.Do(
-                (image, e) =>
-                {
-                    var bgra32Image = image.Resource.Convert(PixelFormat.BGRA_32bpp);
-                    var imageBuffer = new byte[bgra32Image.Size];
-                    bgra32Image.CopyTo(imageBuffer);
-                    pubSocket
-                        .SendMoreFrame("video_frame")
-                        .SendFrame(
-                            MessagePackSerializer.Serialize(
-                                new ImageMessage
-                                {
-                                    OriginatingTime = e.OriginatingTime,
-                                    PixelData = imageBuffer,
-                                    Width = bgra32Image.Width,
-                                    Height = bgra32Image.Height,
-                                }
-                            )
-                        );
-                }
+            var mq = new NetMQWriter(
+                percepSyncPipeline,
+                "tcp://*:12345",
+                MessagePackFormat.Instance
             );
+            webcam
+                .Select(
+                    (image) =>
+                    {
+                        var bgra32Image = image.Resource.Convert(PixelFormat.BGRA_32bpp);
+                        var pixelData = new byte[bgra32Image.Size];
+                        bgra32Image.CopyTo(pixelData);
+                        return new RawPixelImage
+                        {
+                            pixelData = pixelData,
+                            width = bgra32Image.Width,
+                            height = bgra32Image.Height
+                        };
+                    }
+                )
+                .PipeTo(mq.AddTopic<RawPixelImage>("video-frame"));
 
             // Start the pipeline running
             percepSyncPipeline.RunAsync();
@@ -157,17 +153,6 @@
                 }
 
                 percepSyncPipeline = null;
-            }
-
-            if (pubSocket is not null)
-            {
-                pubSocket.Dispose();
-                if (pubSocket is not null)
-                {
-                    Console.WriteLine("Stopped ZeroMQ Publisher Socket.");
-                }
-
-                pubSocket = null;
             }
         }
     }
