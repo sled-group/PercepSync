@@ -73,6 +73,20 @@
                 "/dev/video0",
                 PixelFormatId.YUYV
             );
+            var serializedWebcam = webcam.Select(
+                (image) =>
+                {
+                    var rgb24Image = image.Resource.Convert(PixelFormat.RGB_24bpp);
+                    var pixelData = new byte[rgb24Image.Size];
+                    rgb24Image.CopyTo(pixelData);
+                    return new RawPixelImage(
+                        pixelData,
+                        image.Resource.Width,
+                        image.Resource.Height,
+                        image.Resource.Stride
+                    );
+                }
+            );
 
             // Create the audio capture component
             var audio = new AudioCapture(
@@ -83,17 +97,7 @@
                     Format = WaveFormat.Create16kHz1Channel16BitPcm()
                 }
             );
-
-            // Create an acoustic features extractor component and pipe the audio to it
-            var acousticFeatures = new AcousticFeaturesExtractor(percepSyncPipeline);
-            audio.PipeTo(acousticFeatures);
-
-            // Connect to VideoPlayer
-            videoPlayer = new VideoPlayer(percepSyncPipeline);
-            webcam
-                .Join(acousticFeatures.LogEnergy, RelativeTimeInterval.Past())
-                .Select((data) => new DisplayInput(data.Item1, data.Item2))
-                .PipeTo(videoPlayer);
+            var serializedAudio = audio.Select((buffer) => new AudioBuffer(buffer.Data));
 
             // Connect to zeromq publisher socket
             var mq = new NetMQWriter(
@@ -101,22 +105,19 @@
                 "tcp://*:12345",
                 MessagePackFormat.Instance
             );
-            webcam
-                .Select(
-                    (image) =>
-                    {
-                        var bgra32Image = image.Resource.Convert(PixelFormat.BGRA_32bpp);
-                        var pixelData = new byte[bgra32Image.Size];
-                        bgra32Image.CopyTo(pixelData);
-                        return new RawPixelImage
-                        {
-                            pixelData = pixelData,
-                            width = bgra32Image.Width,
-                            height = bgra32Image.Height
-                        };
-                    }
-                )
-                .PipeTo(mq.AddTopic<RawPixelImage>("video-frame"));
+            serializedWebcam.PipeTo(mq.AddTopic<RawPixelImage>("videoFrame"));
+            serializedAudio.PipeTo(mq.AddTopic<AudioBuffer>("audio"));
+
+            // Create an acoustic features extractor component and pipe the audio to it
+            var acousticFeatures = new AcousticFeaturesExtractor(percepSyncPipeline);
+            audio.PipeTo(acousticFeatures);
+
+            // Connect to VideoPlayer
+            videoPlayer = new VideoPlayer(percepSyncPipeline);
+            serializedWebcam
+                .Join(acousticFeatures.LogEnergy, RelativeTimeInterval.Past())
+                .Select((data) => new DisplayInput(data.Item1, data.Item2))
+                .PipeTo(videoPlayer);
 
             // Start the pipeline running
             percepSyncPipeline.RunAsync();

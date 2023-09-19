@@ -3,19 +3,22 @@ namespace Sled.PercepSync
     using System;
     using System.IO;
     using System.Reflection;
+    using Gtk;
     using Microsoft.Psi;
+    using Microsoft.Psi.Common;
     using Microsoft.Psi.Imaging;
+    using Microsoft.Psi.Media;
 
-    public struct DisplayInput
+    public class DisplayInput
     {
-        public DisplayInput(Shared<Image> frame, float audioLevel)
+        public DisplayInput(RawPixelImage videoFrame, float audioLevel)
         {
-            Frame = frame;
+            VideoFrame = videoFrame;
             AudioLevel = audioLevel;
         }
 
-        public Shared<Image> Frame { get; }
-        public float AudioLevel { get; }
+        public RawPixelImage VideoFrame;
+        public float AudioLevel;
     }
 
     /// <summary>
@@ -94,7 +97,7 @@ namespace Sled.PercepSync
         private void ReceiveDisplayInput(DisplayInput displayInput, Envelope envelope)
         {
             // copy the frame image to the pixel buffer
-            var pixbuf = ImageToPixbuf(displayInput.Frame);
+            var pixbuf = ImageToPixbuf(displayInput.VideoFrame);
 
             // clamp level to between 0 and 20
             var audioLevel =
@@ -115,22 +118,33 @@ namespace Sled.PercepSync
             );
         }
 
-        private Gdk.Pixbuf ImageToPixbuf(Shared<Image> image)
+        private Gdk.Pixbuf ImageToPixbuf(RawPixelImage rawImage)
         {
-            var length = image.Resource.Stride * image.Resource.Height;
+            // First convert RGB 24-bit to BGR 24-bit
+            var image = new Microsoft.Psi.Imaging.Image(
+                UnmanagedBuffer.CreateCopyFrom(rawImage.pixelData),
+                rawImage.width,
+                rawImage.height,
+                rawImage.stride,
+                PixelFormat.RGB_24bpp
+            );
+            var bgr24Image = image.Convert(PixelFormat.BGR_24bpp);
+
+            // Copy the pixels
+            var length = bgr24Image.Stride * bgr24Image.Height;
             if (imageData.Length != length)
             {
                 imageData = new byte[length];
             }
+            bgr24Image.CopyTo(imageData);
 
-            image.Resource.CopyTo(imageData);
             return new Gdk.Pixbuf(
                 imageData,
                 false,
                 8,
-                image.Resource.Width,
-                image.Resource.Height,
-                image.Resource.Stride
+                bgr24Image.Width,
+                bgr24Image.Height,
+                bgr24Image.Stride
             );
         }
     }

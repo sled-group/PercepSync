@@ -8,10 +8,33 @@ namespace Sled.PercepSync
     [MessagePackObject(keyAsPropertyName: true)]
     public class RawPixelImage
     {
-        public byte[]? pixelData { get; set; } = null;
+        public byte[] pixelData { get; set; }
 
         public int width { get; set; }
 
         public int height { get; set; }
+        public int stride { get; set; }
+
+        public RawPixelImage(byte[] pixelData, int width, int height, int stride)
+        {
+            this.pixelData = pixelData;
+            this.width = width;
+            this.height = height;
+            this.stride = stride;
+        }
+    }
+
+    /// <summary>
+    /// Represents an audio buffer whose encoding format is 16KHz, 1 channel, 16-bit PCM
+    /// </summary>
+    [MessagePackObject(keyAsPropertyName: true)]
+    public class AudioBuffer
+    {
+        public byte[] data { get; set; }
+
+        public AudioBuffer(byte[] data)
+        {
+            this.data = data;
+        }
     }
 }
