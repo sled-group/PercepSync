@@ -72,5 +72,9 @@ repos:
       - id: codespell
         args:
           - -L rouge
+        exclude: |
+          (?x)^(
+              VideoPlayerStyles.css
+          )$
         additional_dependencies:
           - tomli
