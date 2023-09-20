@@ -1,5 +1,6 @@
 ﻿namespace Sled.PercepSync
 {
+    using CommandLine;
     using System.IO;
     using System.Reflection;
     using Microsoft.Psi;
@@ -17,13 +18,22 @@
         private static Pipeline? percepSyncPipeline = null!;
         private static VideoPlayer? videoPlayer = null;
 
-        public static void Main()
+        public static void Main(string[] args)
+        {
+            Parser.Default.ParseArguments<Options>(args).WithParsed(RunOptions);
+        }
+
+        private static void RunOptions(Options opts)
         {
             Console.WriteLine("Initializing GTK Application");
             Gtk.Application.Init();
             InitializeCssStyles();
 
-            CreateAndRunPercepSyncPipeline();
+            CreateAndRunPercepSyncPipeline(
+                opts.CameraDeviceID,
+                opts.AudioDeviceName,
+                opts.ZeroMQPubAddress
+            );
 
             GLib.Idle.Add(new GLib.IdleHandler(RunCliIteration));
 
@@ -60,7 +70,11 @@
             return true;
         }
 
-        private static void CreateAndRunPercepSyncPipeline()
+        private static void CreateAndRunPercepSyncPipeline(
+            string cameraDeviceID,
+            string audioDeviceName,
+            string zeroMQPubAddress
+        )
         {
             // Create the \psi pipeline
             percepSyncPipeline = Pipeline.Create();
@@ -70,7 +84,7 @@
                 percepSyncPipeline,
                 640,
                 480,
-                "/dev/video0",
+                cameraDeviceID,
                 PixelFormatId.YUYV
             );
             var serializedWebcam = webcam.Select(
@@ -93,7 +107,7 @@
                 percepSyncPipeline,
                 new AudioCaptureConfiguration
                 {
-                    DeviceName = "plughw:2,0",
+                    DeviceName = audioDeviceName,
                     Format = WaveFormat.Create16kHz1Channel16BitPcm()
                 }
             );
@@ -102,7 +116,7 @@
             // Connect to zeromq publisher socket
             var mq = new NetMQWriter(
                 percepSyncPipeline,
-                "tcp://*:12345",
+                zeroMQPubAddress,
                 MessagePackFormat.Instance
             );
             serializedWebcam.PipeTo(mq.AddTopic<RawPixelImage>("videoFrame"));
