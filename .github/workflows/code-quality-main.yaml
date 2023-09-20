@@ -1,0 +1,20 @@
+# Same as `code-quality-pr.yaml` but triggered on commit to main branch
+# and runs on all files (instead of only the changed ones)
+
+name: Code Quality Main
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  code-quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+      - uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: 7.0.x
+      - uses: pre-commit/action@v3.0.0

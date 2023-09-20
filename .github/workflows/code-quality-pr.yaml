@@ -1,0 +1,35 @@
+# This workflow finds which files were changed, prints them,
+# and runs `pre-commit` on those files.
+
+# Inspired by the sktime library:
+# https://github.com/alan-turing-institute/sktime/blob/main/.github/workflows/test.yml
+
+name: Code Quality PR
+
+on:
+  pull_request:
+    branches: [main, "release/*", "dev"]
+
+jobs:
+  code-quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+      - uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: 7.0.x
+
+      - name: Find modified files
+        id: file_changes
+        uses: trilom/file-changes-action@v1.2.4
+        with:
+          output: " "
+
+      - name: List modified files
+        run: echo '${{ steps.file_changes.outputs.files}}'
+
+      - uses: pre-commit/action@v3.0.0
+        with:
+          extra_args: --files ${{ steps.file_changes.outputs.files}}
