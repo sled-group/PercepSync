@@ -1,0 +1,6 @@
+msgpack
+numpy
+opencv-python
+Pillow
+pyzmq
+simpleaudio
