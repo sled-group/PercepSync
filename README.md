@@ -22,6 +22,39 @@ $ pip install -r samples/requirements.txt
 $ python samples/simple_subscriber.py
 ```
 
+## Data Format
+
+`PercepSync` uses [ZeroMQ](https://zeromq.org/) to publish data from different input devices. Data that can be synchronized will be synchronized and published to a single topic. The serialization format is [MessagePack](https://msgpack.org/).
+
+Here's the list of available topics and their data formats:
+
+- `videoFrame`
+
+```python
+{
+    "message": {
+        "pixelData": bytes, # raw pixels in BGRA-32 for a single frame
+        "width": int,
+        "height": int,
+        "stride": int,
+    },
+    "originatingTime": int,
+}
+```
+
+- `audio`
+
+```python
+{
+    "message": {
+        "data": bytes, # audio buffer in 16KHz, 1 channel, 16-bit PCM
+    },
+    "originatingTime": int,
+}
+```
+
+**NOTE: Synchronizing a single video frame and an audio buffer conceptually do not make sense since they operate on different frequencies. What we could do is to pair up a list of video frames and an audio buffer within the same timeframe. Let us know if you need this, and we'll implement it.**
+
 ## Switching Input Devices
 
 ### Video
