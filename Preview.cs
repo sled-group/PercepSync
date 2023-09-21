@@ -3,11 +3,9 @@ namespace Sled.PercepSync
     using System;
     using System.IO;
     using System.Reflection;
-    using Gtk;
     using Microsoft.Psi;
     using Microsoft.Psi.Common;
     using Microsoft.Psi.Imaging;
-    using Microsoft.Psi.Media;
 
     public class DisplayInput
     {
@@ -24,11 +22,8 @@ namespace Sled.PercepSync
     /// <summary>
     /// Displays a video and other sensor streams in a window.
     /// </summary>
-    public class VideoPlayer : Gtk.Window, IConsumer<DisplayInput>
+    public class Preview : Gtk.Window, IConsumer<DisplayInput>
     {
-        // singleton app thread and app instance shared across VideoPlayers
-        // private static Thread? appThread = null;
-
         // \psi related properties
         public readonly Pipeline pipeline;
         public Receiver<DisplayInput> In { get; }
@@ -40,10 +35,10 @@ namespace Sled.PercepSync
         private byte[] imageData = new byte[640 * 480 * 3];
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="VideoPlayer"/> class.
+        /// Initializes a new instance of the <see cref="Preview"/> class.
         /// </summary>
-        public VideoPlayer(Pipeline pipeline)
-            : base("Video Player")
+        public Preview(Pipeline pipeline)
+            : base("Preview")
         {
             this.pipeline = pipeline;
             In = pipeline.CreateReceiver<DisplayInput>(this, ReceiveDisplayInput, nameof(In));

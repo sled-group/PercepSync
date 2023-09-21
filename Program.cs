@@ -16,7 +16,11 @@
     public class Program
     {
         private static Pipeline? percepSyncPipeline = null!;
-        private static VideoPlayer? videoPlayer = null;
+        private static Preview? preview = null;
+        private static string cameraDeviceID = "";
+        private static string audioDeviceName = "";
+        private static string zeroMQPubAddress = "";
+        private static bool enablePreview = false;
 
         public static void Main(string[] args)
         {
@@ -25,22 +29,34 @@
 
         private static void RunOptions(Options opts)
         {
-            Console.WriteLine("Initializing GTK Application");
-            Gtk.Application.Init();
-            InitializeCssStyles();
+            cameraDeviceID = opts.CameraDeviceID;
+            audioDeviceName = opts.AudioDeviceName;
+            zeroMQPubAddress = opts.ZeroMQPubAddress;
+            enablePreview = opts.EnablePreview;
 
-            CreateAndRunPercepSyncPipeline(
-                opts.CameraDeviceID,
-                opts.AudioDeviceName,
-                opts.ZeroMQPubAddress
-            );
+            if (enablePreview)
+            {
+                Console.WriteLine("Initializing GTK Application");
+                Gtk.Application.Init();
+                InitializeCssStyles();
+            }
 
-            GLib.Idle.Add(new GLib.IdleHandler(RunCliIteration));
+            CreateAndRunPercepSyncPipeline();
 
             Console.WriteLine("Press Q or ENTER key to exit.");
-            Console.WriteLine("Press V to start VideoPlayer.");
-
-            Gtk.Application.Run();
+            if (enablePreview)
+            {
+                Console.WriteLine("Press V to start VideoPlayer.");
+                GLib.Idle.Add(new GLib.IdleHandler(RunCliIteration));
+                Gtk.Application.Run();
+            }
+            else
+            {
+                while (true)
+                {
+                    RunCliIteration();
+                }
+            }
         }
 
         private static bool RunCliIteration()
@@ -55,26 +71,25 @@
                         Environment.Exit(0);
                         break;
                     case ConsoleKey.V:
-                        if (percepSyncPipeline is null)
+                        if (enablePreview)
                         {
-                            throw new Exception("Pipeline has not been initialized.");
+                            if (percepSyncPipeline is null)
+                            {
+                                throw new Exception("Pipeline has not been initialized.");
+                            }
+                            if (preview is null)
+                            {
+                                throw new Exception("Preview has not been initialized.");
+                            }
+                            preview.ShowAll();
                         }
-                        if (videoPlayer is null)
-                        {
-                            throw new Exception("DisplayInput producer has not been initialized.");
-                        }
-                        videoPlayer.ShowAll();
                         break;
                 }
             }
             return true;
         }
 
-        private static void CreateAndRunPercepSyncPipeline(
-            string cameraDeviceID,
-            string audioDeviceName,
-            string zeroMQPubAddress
-        )
+        private static void CreateAndRunPercepSyncPipeline()
         {
             // Create the \psi pipeline
             percepSyncPipeline = Pipeline.Create();
@@ -126,12 +141,15 @@
             var acousticFeatures = new AcousticFeaturesExtractor(percepSyncPipeline);
             audio.PipeTo(acousticFeatures);
 
-            // Connect to VideoPlayer
-            videoPlayer = new VideoPlayer(percepSyncPipeline);
-            serializedWebcam
-                .Join(acousticFeatures.LogEnergy, RelativeTimeInterval.Past())
-                .Select((data) => new DisplayInput(data.Item1, data.Item2))
-                .PipeTo(videoPlayer);
+            if (enablePreview)
+            {
+                // Connect to VideoPlayer
+                preview = new Preview(percepSyncPipeline);
+                serializedWebcam
+                    .Join(acousticFeatures.LogEnergy, RelativeTimeInterval.Past())
+                    .Select((data) => new DisplayInput(data.Item1, data.Item2))
+                    .PipeTo(preview);
+            }
 
             // Start the pipeline running
             percepSyncPipeline.RunAsync();
