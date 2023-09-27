@@ -19,6 +19,13 @@ namespace Sled.PercepSync
         public string AudioDeviceName { get; set; } = "plughw:0,0";
 
         [Option(
+            "rdzv-server-port",
+            Required = false,
+            HelpText = "Rendezvous server port (default: 13331})"
+        )]
+        public int RdzvServerPort { get; set; } = 13331;
+
+        [Option(
             "zeromq-pub-address",
             Required = false,
             HelpText = "Address for ZeroMQ publish socket (default: tcp://*:12345)"

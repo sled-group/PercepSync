@@ -4,23 +4,25 @@
     using System.IO;
     using System.Reflection;
     using Microsoft.Psi;
-    using Microsoft.Psi.Media;
     using Microsoft.Psi.Audio;
-    using Microsoft.Psi.Imaging;
     using Microsoft.Psi.Interop.Transport;
     using Microsoft.Psi.Interop.Format;
+    using Microsoft.Psi.Interop.Rendezvous;
 
     /// <summary>
     /// PercepSync synchronizes streams of data from different perceptions and broadcast them.
     /// </summary>
     public class Program
     {
-        private static Pipeline? percepSyncPipeline = null!;
-        private static Preview? preview = null;
-        private static string cameraDeviceID = "";
-        private static string audioDeviceName = "";
+        private static RendezvousServer? rendezvousServer;
+        private static Pipeline? percepSyncPipeline;
+        private static Preview? preview;
+        private static LocalDevicesCapture? localDevicesCapture;
         private static string zeroMQPubAddress = "";
         private static bool enablePreview = false;
+
+        public static readonly string VideoFrameTopic = "videoFrame";
+        public static readonly string AudioTopic = "audio";
 
         public static void Main(string[] args)
         {
@@ -29,32 +31,97 @@
 
         private static void RunOptions(Options opts)
         {
-            cameraDeviceID = opts.CameraDeviceID;
-            audioDeviceName = opts.AudioDeviceName;
-            zeroMQPubAddress = opts.ZeroMQPubAddress;
+            rendezvousServer = new RendezvousServer(opts.RdzvServerPort);
             enablePreview = opts.EnablePreview;
+            zeroMQPubAddress = opts.ZeroMQPubAddress;
 
-            if (enablePreview)
+            rendezvousServer.Rendezvous.ProcessAdded += (_, process) =>
             {
-                Console.WriteLine("Initializing GTK Application");
-                Gtk.Application.Init();
-                InitializeCssStyles();
-            }
+                ReportProcessAdded(process);
 
-            CreateAndRunPercepSyncPipeline();
-
-            Console.WriteLine("Press Q or ENTER key to exit.");
-            if (enablePreview)
-            {
-                Console.WriteLine("Press V to start VideoPlayer.");
-                GLib.Idle.Add(new GLib.IdleHandler(RunCliIteration));
-                Gtk.Application.Run();
-            }
-            else
-            {
-                while (true)
+                if (process.Name == nameof(LocalDevicesCapture))
                 {
-                    RunCliIteration();
+                    Console.WriteLine(
+                        $"Starting PercepSync pipeline for {nameof(LocalDevicesCapture)}"
+                    );
+
+                    if (enablePreview)
+                    {
+                        Console.WriteLine("Initializing GTK Application");
+                        Gtk.Application.Init();
+                        InitializeCssStyles();
+                    }
+
+                    CreateAndRunPercepSyncPipeline(process);
+
+                    Console.WriteLine("Press Q or ENTER key to exit.");
+                    if (enablePreview)
+                    {
+                        Console.WriteLine("Press V to start VideoPlayer.");
+                        GLib.Idle.Add(new GLib.IdleHandler(RunCliIteration));
+                        Gtk.Application.Run();
+                    }
+                    else
+                    {
+                        while (true)
+                        {
+                            RunCliIteration();
+                        }
+                    }
+                }
+            };
+
+            rendezvousServer.Start();
+
+            localDevicesCapture = new LocalDevicesCapture(
+                "127.0.0.1",
+                opts.RdzvServerPort,
+                opts.CameraDeviceID,
+                opts.AudioDeviceName
+            );
+            localDevicesCapture.Start();
+        }
+
+        private static void ReportProcessAdded(Rendezvous.Process process)
+        {
+            Console.WriteLine();
+            Console.WriteLine($"PROCESS ADDED: {process.Name}");
+            foreach (var endpoint in process.Endpoints)
+            {
+                if (endpoint is Rendezvous.TcpSourceEndpoint tcpEndpoint)
+                {
+                    Console.WriteLine($"  ENDPOINT: TCP {tcpEndpoint.Host} {tcpEndpoint.Port}");
+                }
+                else if (endpoint is Rendezvous.NetMQSourceEndpoint netMQEndpoint)
+                {
+                    Console.WriteLine($"  ENDPOINT: NetMQ {netMQEndpoint.Address}");
+                }
+                else if (endpoint is Rendezvous.RemoteExporterEndpoint remoteExporterEndpoint)
+                {
+                    Console.WriteLine(
+                        $"  ENDPOINT: Remote {remoteExporterEndpoint.Host} {remoteExporterEndpoint.Port} {remoteExporterEndpoint.Transport}"
+                    );
+                }
+                else if (
+                    endpoint is Rendezvous.RemoteClockExporterEndpoint remoteClockExporterEndpoint
+                )
+                {
+                    Console.WriteLine(
+                        $"  ENDPOINT: Remote Clock {remoteClockExporterEndpoint.Host} {remoteClockExporterEndpoint.Port}"
+                    );
+                }
+                else
+                {
+                    throw new ArgumentException(
+                        $"Unknown type of Endpoint ({endpoint.GetType().Name})."
+                    );
+                }
+
+                foreach (var stream in endpoint.Streams)
+                {
+                    Console.WriteLine(
+                        $"    STREAM: {stream.StreamName} ({stream.TypeName.Split(',')[0]})"
+                    );
                 }
             }
         }
@@ -67,7 +134,8 @@
                 {
                     case ConsoleKey.Q:
                     case ConsoleKey.Enter:
-                        StopPercepSync("PercepSync manually stopped");
+                        Console.WriteLine("PercepSync manually stopped");
+                        StopPercepSync();
                         Environment.Exit(0);
                         break;
                     case ConsoleKey.V:
@@ -89,44 +157,12 @@
             return true;
         }
 
-        private static void CreateAndRunPercepSyncPipeline()
+        private static void CreateAndRunPercepSyncPipeline(
+            Rendezvous.Process inputRendezvousProcess
+        )
         {
             // Create the \psi pipeline
             percepSyncPipeline = Pipeline.Create();
-
-            // Create the webcam component
-            var webcam = new MediaCapture(
-                percepSyncPipeline,
-                640,
-                480,
-                cameraDeviceID,
-                PixelFormatId.YUYV
-            );
-            var serializedWebcam = webcam.Select(
-                (image) =>
-                {
-                    var rgb24Image = image.Resource.Convert(PixelFormat.RGB_24bpp);
-                    var pixelData = new byte[rgb24Image.Size];
-                    rgb24Image.CopyTo(pixelData);
-                    return new RawPixelImage(
-                        pixelData,
-                        image.Resource.Width,
-                        image.Resource.Height,
-                        image.Resource.Stride
-                    );
-                }
-            );
-
-            // Create the audio capture component
-            var audio = new AudioCapture(
-                percepSyncPipeline,
-                new AudioCaptureConfiguration
-                {
-                    DeviceName = audioDeviceName,
-                    Format = WaveFormat.Create16kHz1Channel16BitPcm()
-                }
-            );
-            var serializedAudio = audio.Select((buffer) => new AudioBuffer(buffer.Data));
 
             // Connect to zeromq publisher socket
             var mq = new NetMQWriter(
@@ -134,19 +170,65 @@
                 zeroMQPubAddress,
                 MessagePackFormat.Instance
             );
-            serializedWebcam.PipeTo(mq.AddTopic<RawPixelImage>("videoFrame"));
-            serializedAudio.PipeTo(mq.AddTopic<AudioBuffer>("audio"));
 
             // Create an acoustic features extractor component and pipe the audio to it
             var acousticFeatures = new AcousticFeaturesExtractor(percepSyncPipeline);
-            audio.PipeTo(acousticFeatures);
+            IProducer<RawPixelImage>? serializedWebcam = null;
+            foreach (var endpoint in inputRendezvousProcess.Endpoints)
+            {
+                if (
+                    endpoint is Rendezvous.NetMQSourceEndpoint mqSourceEndpoint
+                    && mqSourceEndpoint is not null
+                )
+                {
+                    foreach (var stream in mqSourceEndpoint.Streams)
+                    {
+                        // NOTE: MessagePackFormat is not generic and deserializes things as dynamic,
+                        // so we need to manually construct things.
+                        var deserializedSourceEndpoint = mqSourceEndpoint.ToNetMQSource<dynamic>(
+                            percepSyncPipeline,
+                            stream.StreamName,
+                            MessagePackFormat.Instance
+                        );
+                        if (stream.StreamName == LocalDevicesCapture.WebcamTopic)
+                        {
+                            serializedWebcam = deserializedSourceEndpoint.Select(
+                                (data) =>
+                                    new RawPixelImage(
+                                        data.pixelData,
+                                        data.width,
+                                        data.height,
+                                        data.stride
+                                    )
+                            );
+                            serializedWebcam.PipeTo(mq.AddTopic<RawPixelImage>(VideoFrameTopic));
+                        }
+                        else if (stream.StreamName == LocalDevicesCapture.AudioTopic)
+                        {
+                            var serializedAudio = deserializedSourceEndpoint.Select(
+                                (data) => new AudioBuffer(data.data)
+                            );
+                            serializedAudio.PipeTo(mq.AddTopic<AudioBuffer>(AudioTopic));
+                            serializedAudio
+                                .Select(
+                                    (buffer) =>
+                                        new Microsoft.Psi.Audio.AudioBuffer(
+                                            buffer.data,
+                                            WaveFormat.Create16kHz1Channel16BitPcm()
+                                        )
+                                )
+                                .PipeTo(acousticFeatures);
+                        }
+                    }
+                }
+            }
 
             if (enablePreview)
             {
                 // Connect to VideoPlayer
                 preview = new Preview(percepSyncPipeline);
                 serializedWebcam
-                    .Join(acousticFeatures.LogEnergy, RelativeTimeInterval.Past())
+                    ?.Join(acousticFeatures.LogEnergy, RelativeTimeInterval.Past())
                     .Select((data) => new DisplayInput(data.Item1, data.Item2))
                     .PipeTo(preview);
             }
@@ -175,8 +257,19 @@
             );
         }
 
-        private static void StopPercepSync(string message)
+        private static void StopPercepSync()
         {
+            if (localDevicesCapture is not null)
+            {
+                localDevicesCapture.Dispose();
+
+                if (localDevicesCapture is not null)
+                {
+                    Console.WriteLine("Stopped Local Device Capture.");
+                }
+
+                localDevicesCapture = null;
+            }
             if (percepSyncPipeline is not null)
             {
                 percepSyncPipeline.Dispose();
@@ -186,6 +279,15 @@
                 }
 
                 percepSyncPipeline = null;
+            }
+            if (rendezvousServer is not null)
+            {
+                rendezvousServer.Dispose();
+                if (rendezvousServer is not null)
+                {
+                    Console.WriteLine("Stopped Rendezvous Server.");
+                }
+                rendezvousServer = null;
             }
         }
     }
