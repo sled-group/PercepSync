@@ -28,13 +28,13 @@ namespace Sled.PercepSync
     /// Represents an audio buffer whose encoding format is 16KHz, 1 channel, 16-bit PCM
     /// </summary>
     [MessagePackObject(keyAsPropertyName: true)]
-    public class AudioBuffer
+    public class Audio
     {
-        public byte[] data { get; set; }
+        public byte[] buffer { get; set; }
 
-        public AudioBuffer(byte[] data)
+        public Audio(byte[] buffer)
         {
-            this.data = data;
+            this.buffer = buffer;
         }
     }
 }

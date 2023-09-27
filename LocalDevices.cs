@@ -53,7 +53,7 @@ namespace Sled.PercepSync
                     Format = WaveFormat.Create16kHz1Channel16BitPcm()
                 }
             );
-            var serializedAudio = audio.Select((buffer) => new AudioBuffer(buffer.Data));
+            var serializedAudio = audio.Select((buffer) => new Audio(buffer.Data));
 
             // NOTE: We can't use RemoteExporter here b/c \psi uses named memory mapped files
             // to serialize complex types, e.g., RawPixelImage, but named memory mapped files
@@ -65,7 +65,7 @@ namespace Sled.PercepSync
                 deliveryPolicy: DeliveryPolicy.LatestMessage
             );
             serializedAudio.PipeTo(
-                mqWriter.AddTopic<AudioBuffer>(AudioTopic),
+                mqWriter.AddTopic<Audio>(AudioTopic),
                 deliveryPolicy: DeliveryPolicy.LatestMessage
             );
         }
