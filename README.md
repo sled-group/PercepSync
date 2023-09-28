@@ -2,6 +2,8 @@
 
 ## Quick Start
 
+### Local Devices
+
 Connect a webcam and a microphone to your machine, then download the latest binary from the [Releases page](https://github.com/sled-group/PercepSync/releases) and run it.
 
 ```bash
@@ -9,10 +11,38 @@ Connect a webcam and a microphone to your machine, then download the latest bina
 $ chmod +x PercepSync
 
 # Now, run it!
-$ ./PercepSync
+$ ./PercepSync local
+
+# If you want the preview window specify --enable-preview
+$ ./PercepSync --enable-preview local
 ```
 
 You can then run the sample Python script in another terminal to see what's being streamed. Make sure you have access to a display. Please use this Python script as a reference on how to stream data from `PercepSync` using Python.
+
+```bash
+# Install the required packages
+$ pip install -r samples/requirements.txt
+
+# Now, run it!
+$ python samples/simple_subscriber.py
+```
+
+### HoloLens
+
+First, place a file named `CaptureServerIP.txt` in the `Documents` folder of your HoloLens with the IP address of the server you're going to run `PercepSync` from. Then, download the latest binary from the [Releases page](https://github.com/sled-group/PercepSync/releases) and run it.
+
+```bash
+# First make it executable
+$ chmod +x PercepSync
+
+# Now, run it!
+$ ./PercepSync hololens
+
+# If you want the preview window specify --enable-preview
+$ ./PercepSync --enable-preview hololens
+```
+
+Now run the `HoloLensCaptureApp` on your HoloLens and start capturing. It'll automatically connect to `PercepSync`. You can then run the same Python script in another terminal to see what's being streamed.
 
 ```bash
 # Install the required packages
@@ -55,7 +85,7 @@ Here's the list of available topics and their data formats:
 
 **NOTE: Synchronizing a single video frame and an audio buffer conceptually do not make sense since they operate on different frequencies. What we could do is to pair up a list of video frames and an audio buffer within the same timeframe. Let us know if you need this, and we'll implement it.**
 
-## Switching Input Devices
+## Switching Local Devices
 
 ### Video
 
@@ -68,7 +98,7 @@ crw-rw----+ 1 root video 81, 1 Sep 21 08:50 /dev/video1
 crw-rw----+ 1 root video 81, 0 Sep 21 08:50 /dev/video0
 
 # Let's use /dev/video1
-$ ./PercepSync --camera-device-id /dev/video1
+$ ./PercepSync local --camera-device-id /dev/video1
 ```
 
 ### Audio
@@ -84,7 +114,7 @@ $ pacmd list-sources
         alsa.card = "2"
     ...truncated
 
-$ ./PercepSync --audio-device-name plughw:2,0
+$ ./PercepSync local --audio-device-name plughw:2,0
 ```
 
 ## Development
