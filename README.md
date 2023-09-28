@@ -52,6 +52,8 @@ $ pip install -r samples/requirements.txt
 $ python samples/simple_subscriber.py
 ```
 
+**NOTE: Audio streaming from HoloLens doesn't work yet and it just plays loud static noise. This will be fixed in the next version.**
+
 ## Data Format
 
 `PercepSync` uses [ZeroMQ](https://zeromq.org/) to publish data from different input devices. Data that can be synchronized will be synchronized and published to a single topic. The serialization format is [MessagePack](https://msgpack.org/).
