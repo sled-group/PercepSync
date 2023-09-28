@@ -19,6 +19,7 @@
         private static Pipeline? percepSyncPipeline;
         private static Preview? preview;
         private static LocalDevicesCapture? localDevicesCapture;
+        private static readonly ManualResetEventSlim clientConnectedEvent = new();
 
         private const string VideoFrameTopic = "videoFrame";
         private const string AudioTopic = "audio";
@@ -151,10 +152,16 @@
 
             // Run the pipeline
             percepSyncPipeline.RunAsync();
+
+            // Notify that the client has connected and the pipeline is running
+            clientConnectedEvent.Set();
         }
 
         private static void RunPercepSync(bool enablePreview)
         {
+            Console.Write("Waiting for a client to connect ...");
+            clientConnectedEvent.Wait();
+            Console.WriteLine("Done.");
             Console.WriteLine("Press Q or ENTER key to exit.");
             if (enablePreview)
             {
