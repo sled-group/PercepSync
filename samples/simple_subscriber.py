@@ -18,7 +18,7 @@ while True:
         image = Image.frombytes('RGB', (image_data['width'], image_data['height']), image_data['pixelData'])
         cv2.imshow("Webcam", np.array(image))
     elif topic == b'audio':
-        sa.play_buffer(data['message']['data'], 1, 2, 16000)
+        sa.play_buffer(data['message']['buffer'], 1, 2, 16000)
     else:
         raise Exception(f'Unknown topic: {topic}')
 

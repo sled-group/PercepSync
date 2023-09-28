@@ -12,7 +12,7 @@ $ chmod +x PercepSync
 $ ./PercepSync
 ```
 
-You can then run the sample Python script to see what's being streamed. Make sure you have access to a display.
+You can then run the sample Python script in another terminal to see what's being streamed. Make sure you have access to a display. Please use this Python script as a reference on how to stream data from `PercepSync` using Python.
 
 ```bash
 # Install the required packages
@@ -33,7 +33,7 @@ Here's the list of available topics and their data formats:
 ```python
 {
     "message": {
-        "pixelData": bytes, # raw pixels in BGRA-32 for a single frame
+        "pixelData": bytes, # raw pixels in RGB 24-bit for a single frame
         "width": int,
         "height": int,
         "stride": int,
@@ -47,7 +47,7 @@ Here's the list of available topics and their data formats:
 ```python
 {
     "message": {
-        "data": bytes, # audio buffer in 16KHz, 1 channel, 16-bit PCM
+        "buffer": bytes, # audio buffer in 16KHz, 1 channel, 16-bit PCM
     },
     "originatingTime": int,
 }
