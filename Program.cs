@@ -524,7 +524,7 @@
                     rendezvousServer.Rendezvous.TryRemoveProcess(HoloLensCaptureAppProcessName);
                     rendezvousServer.Rendezvous.TryRemoveProcess(nameof(LocalDevicesCapture));
                 }
-                percepSyncPipeline.Dispose();
+                percepSyncPipeline?.Dispose();
                 if (percepSyncPipeline is not null)
                 {
                     Console.WriteLine("Stopped Capture Server Pipeline.");
