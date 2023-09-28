@@ -23,6 +23,7 @@
 
         private const string VideoFrameTopic = "videoFrame";
         private const string AudioTopic = "audio";
+        private const string HoloLensCaptureServerProcessName = "HoloLensCaptureServer"; // HoloLensCaptureApp expects this. Should be changed later
         private const string HoloLensCaptureAppProcessName = "HoloLensCaptureApp";
         private const string HoloLensCaptureAppVersion = "v1";
         private const string HoloLensVideoStreamName = "VideoEncodedImageCameraView";
@@ -37,12 +38,23 @@
                 Gtk.Application.Init();
                 InitializeCssStyles();
             }
-            percepSyncPipeline = Pipeline.Create();
-            percepSyncPipeline.PipelineExceptionNotHandled += (_, args) =>
-            {
-                Console.WriteLine($"SERVER PIPELINE RUNTIME EXCEPTION: {args.Exception.Message}");
-            };
             rendezvousServer = new RendezvousServer(parseResult.Value.RdzvServerPort);
+            rendezvousServer.Rendezvous.ProcessRemoved += (_, process) =>
+            {
+                ReportProcessRemoved(process);
+                if (process.Name == HoloLensCaptureAppProcessName)
+                {
+                    // NOTE: We don't want to do this for local device capture
+                    // since if that's been removed, the whole PercepSync is also
+                    // going down, which causes some race conditions when cleaning up.
+                    StopPercepSyncPipeline("Client stopped recording");
+                }
+            };
+            rendezvousServer.Error += (_, ex) =>
+            {
+                Console.WriteLine();
+                StopPercepSyncPipeline($"RENDEZVOUS ERROR: {ex.Message}");
+            };
             Parser.Default
                 .ParseArguments<LocalOptions, HoloLensOptions>(parseResult.Value.SubArgs)
                 .WithParsed(RunLocal(parseResult.Value))
@@ -64,6 +76,13 @@
                         if (process.Name == nameof(LocalDevicesCapture))
                         {
                             Console.WriteLine($"Starting PercepSync pipeline for {process.Name}");
+                            percepSyncPipeline = Pipeline.Create();
+                            percepSyncPipeline.PipelineExceptionNotHandled += (_, args) =>
+                            {
+                                Console.WriteLine(
+                                    $"SERVER PIPELINE RUNTIME EXCEPTION: {args.Exception.Message}"
+                                );
+                            };
                             var sensorStreams = ConstructLocalSensorStreams(
                                 process,
                                 new NetMQWriter(
@@ -109,6 +128,13 @@
                                 );
                             }
                             Console.WriteLine($"Starting PercepSync pipeline for {process.Name}");
+                            percepSyncPipeline = Pipeline.Create();
+                            percepSyncPipeline.PipelineExceptionNotHandled += (_, args) =>
+                            {
+                                Console.WriteLine(
+                                    $"SERVER PIPELINE RUNTIME EXCEPTION: {args.Exception.Message}"
+                                );
+                            };
                             var sensorStreams = ConstructHoloLensSensorStreams(
                                 process,
                                 new NetMQWriter(
@@ -222,6 +248,12 @@
             }
         }
 
+        private static void ReportProcessRemoved(Rendezvous.Process process)
+        {
+            Console.WriteLine();
+            Console.WriteLine($"PROCESS REMOVED: {process.Name}");
+        }
+
         private static bool RunCliIteration(bool enablePreview)
         {
             if (Console.KeyAvailable)
@@ -230,8 +262,7 @@
                 {
                     case ConsoleKey.Q:
                     case ConsoleKey.Enter:
-                        Console.WriteLine("PercepSync manually stopped");
-                        StopPercepSync();
+                        StopPercepSyncPipeline("PercepSync manually stopped");
                         Environment.Exit(0);
                         break;
                     case ConsoleKey.V:
@@ -413,7 +444,7 @@
             serverHeartbeat.PipeTo(heartbeatTcpSource);
             rendezvousServer.Rendezvous.TryAddProcess(
                 new Rendezvous.Process(
-                    "HoloLensCaptureServer", // HoloLensCaptureApp expects this. Should be changed later
+                    HoloLensCaptureServerProcessName, // HoloLensCaptureApp expects this. Should be changed later
                     new[] { heartbeatTcpSource.ToRendezvousEndpoint("0.0.0.0", "ServerHeartbeat") }, // HoloLensCaptureApp expects this stream name. Should be changed later.
                     HoloLensCaptureAppVersion
                 )
@@ -452,21 +483,17 @@
             );
         }
 
-        private static void StopPercepSync()
+        private static void StopPercepSyncPipeline(string message)
         {
-            if (localDevicesCapture is not null)
-            {
-                localDevicesCapture.Dispose();
-
-                if (localDevicesCapture is not null)
-                {
-                    Console.WriteLine("Stopped Local Device Capture.");
-                }
-
-                localDevicesCapture = null;
-            }
+            Console.WriteLine($"Stopping PercepSync pipeline: {message}");
             if (percepSyncPipeline is not null)
             {
+                if (rendezvousServer is not null)
+                {
+                    rendezvousServer.Rendezvous.TryRemoveProcess(HoloLensCaptureServerProcessName);
+                    rendezvousServer.Rendezvous.TryRemoveProcess(HoloLensCaptureAppProcessName);
+                    rendezvousServer.Rendezvous.TryRemoveProcess(nameof(LocalDevicesCapture));
+                }
                 percepSyncPipeline.Dispose();
                 if (percepSyncPipeline is not null)
                 {
@@ -474,15 +501,6 @@
                 }
 
                 percepSyncPipeline = null;
-            }
-            if (rendezvousServer is not null)
-            {
-                rendezvousServer.Dispose();
-                if (rendezvousServer is not null)
-                {
-                    Console.WriteLine("Stopped Rendezvous Server.");
-                }
-                rendezvousServer = null;
             }
         }
 
