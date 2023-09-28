@@ -37,9 +37,9 @@ namespace Sled.PercepSync
                     rgb24Image.CopyTo(pixelData);
                     return new RawPixelImage(
                         pixelData,
-                        image.Resource.Width,
-                        image.Resource.Height,
-                        image.Resource.Stride
+                        rgb24Image.Width,
+                        rgb24Image.Height,
+                        rgb24Image.Stride
                     );
                 }
             );
