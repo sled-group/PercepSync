@@ -116,7 +116,7 @@ namespace Sled.PercepSync
         private Gdk.Pixbuf ImageToPixbuf(RawPixelImage rawImage)
         {
             // First convert RGB 24-bit to BGR 24-bit
-            var image = new Microsoft.Psi.Imaging.Image(
+            var image = new Image(
                 UnmanagedBuffer.CreateCopyFrom(rawImage.pixelData),
                 rawImage.width,
                 rawImage.height,
