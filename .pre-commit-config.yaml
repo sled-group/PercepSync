@@ -74,7 +74,7 @@ repos:
           - -L rouge
         exclude: |
           (?x)^(
-              VideoPlayerStyles.css
+              src/PercepSync/VideoPlayerStyles.css
           )$
         additional_dependencies:
           - tomli
