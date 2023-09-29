@@ -17,7 +17,7 @@ jobs:
         run: |
           DOTNET_VERSION=${GITHUB_REF_NAME#v*}
           echo $DOTNET_VERSION
-          dotnet publish -p:Version=$DOTNET_VERSION
+          dotnet publish src/PercepSync/PercepSync.csproj -p:Version=$DOTNET_VERSION
       - uses: svenstaro/upload-release-action@v2
         with:
-          file: bin/Debug/net7.0/linux-x64/publish/PercepSync
+          file: src/PercepSync/bin/Debug/net7.0/linux-x64/publish/PercepSync
