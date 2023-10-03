@@ -74,7 +74,8 @@ repos:
           - -L rouge
         exclude: |
           (?x)^(
-              src/PercepSync/VideoPlayerStyles.css
+              src/PercepSync/VideoPlayerStyles.css|
+              src/HoloLens2ResearchMode/pch.h
           )$
         additional_dependencies:
           - tomli
