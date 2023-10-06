@@ -9,6 +9,7 @@
     using Microsoft.Psi.Interop.Rendezvous;
     using Microsoft.Psi.Imaging;
     using System.CommandLine;
+    using HoloLensCaptureInterop;
 
     /// <summary>
     /// PercepSync synchronizes streams of data from different perceptions and broadcast them.
@@ -420,7 +421,7 @@
                     {
                         var sharedEncodedImageSourceEndpoint = tcpEndpoint.ToTcpSource<
                             Shared<EncodedImage>
-                        >(percepSyncPipeline, HoloLensSerializers.SharedEncodedImageFormat());
+                        >(percepSyncPipeline, Serializers.SharedEncodedImageFormat());
                         videoFrameStream = sharedEncodedImageSourceEndpoint
                             .Decode(new ImageFromNV12StreamDecoder(), DeliveryPolicy.LatestMessage)
                             .Select(
@@ -448,7 +449,7 @@
                         audioStream = tcpEndpoint
                             .ToTcpSource<AudioBuffer>(
                                 percepSyncPipeline,
-                                HoloLensSerializers.AudioBufferFormat()
+                                Serializers.AudioBufferFormat()
                             )
                             .Select((buffer) => new Audio(buffer.Data));
                     }
@@ -469,7 +470,7 @@
             var heartbeatTcpSource = new TcpWriter<(float, float)>(
                 percepSyncPipeline,
                 16000,
-                HoloLensSerializers.HeartbeatFormat()
+                Serializers.HeartbeatFormat()
             );
             serverHeartbeat.PipeTo(heartbeatTcpSource);
             rendezvousServer.Rendezvous.TryAddProcess(
