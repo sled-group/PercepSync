@@ -746,15 +746,6 @@ namespace PercepSyncHoloLensCapture
                                             Serializers.DepthImageCameraViewFormat(),
                                             DeliveryPolicy.LatestMessage
                                         );
-#if DEBUG
-                                        Write(
-                                            "DepthDebugOutOfOrderFrames",
-                                            depthCamera?.DebugOutOfOrderFrames,
-                                            port++,
-                                            Serializers.Int32Format(),
-                                            DeliveryPolicy.Unlimited
-                                        );
-#endif
                                     }
 
                                     if (IncludeDepthInfrared)
@@ -806,15 +797,6 @@ namespace PercepSyncHoloLensCapture
                                             Serializers.DepthImageCameraViewFormat(),
                                             DeliveryPolicy.LatestMessage
                                         );
-#if DEBUG
-                                        Write(
-                                            "AhatDebugOutOfOrderFrames",
-                                            depthAhatCamera?.DebugOutOfOrderFrames,
-                                            port++,
-                                            Serializers.Int32Format(),
-                                            DeliveryPolicy.Unlimited
-                                        );
-#endif
                                     }
 
                                     if (IncludeAhatInfrared)

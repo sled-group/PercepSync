@@ -24,7 +24,7 @@
         private const string VideoFrameTopic = "videoFrame";
         private const string AudioTopic = "audio";
         private const string HoloLensCaptureServerProcessName = "HoloLensCaptureServer"; // HoloLensCaptureApp expects this. Should be changed later
-        private const string HoloLensCaptureAppProcessName = "HoloLensCaptureApp";
+        private const string PercepSyncHoloLensCaptureProcessName = "PercepSyncHoloLensCapture";
         private const string HoloLensCaptureAppVersion = "v1";
         private const string HoloLensVideoStreamName = "VideoEncodedImageCameraView";
         private const string HoloLensAudioStreamName = "Audio";
@@ -104,7 +104,7 @@
                         zeroMQPubAddress,
                         enablePreview,
                         rdzvServerPort,
-                        HoloLensCaptureAppProcessName,
+                        PercepSyncHoloLensCaptureProcessName,
                         ConstructHoloLensSensorStreams,
                         targetProcessVersion: HoloLensCaptureAppVersion
                     );
@@ -136,7 +136,7 @@
             rendezvousServer.Rendezvous.ProcessRemoved += (_, process) =>
             {
                 ReportProcessRemoved(process);
-                if (process.Name == HoloLensCaptureAppProcessName)
+                if (process.Name == PercepSyncHoloLensCaptureProcessName)
                 {
                     // NOTE: We don't want to do this for local device capture
                     // since if that's been removed, the whole PercepSync is also
@@ -521,7 +521,9 @@
                 if (rendezvousServer is not null)
                 {
                     rendezvousServer.Rendezvous.TryRemoveProcess(HoloLensCaptureServerProcessName);
-                    rendezvousServer.Rendezvous.TryRemoveProcess(HoloLensCaptureAppProcessName);
+                    rendezvousServer.Rendezvous.TryRemoveProcess(
+                        PercepSyncHoloLensCaptureProcessName
+                    );
                     rendezvousServer.Rendezvous.TryRemoveProcess(nameof(LocalDevicesCapture));
                 }
                 percepSyncPipeline?.Dispose();
