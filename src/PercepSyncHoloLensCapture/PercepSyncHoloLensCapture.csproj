@@ -94,6 +94,9 @@
     <PackageReference Include="Microsoft.Psi.Audio">
       <Version>0.18.72.1-beta</Version>
     </PackageReference>
+    <PackageReference Include="Microsoft.Psi.Audio.Windows">
+      <Version>0.18.72.1-beta</Version>
+    </PackageReference>
     <PackageReference Include="Microsoft.Psi.Calibration">
       <Version>0.18.72.1-beta</Version>
     </PackageReference>

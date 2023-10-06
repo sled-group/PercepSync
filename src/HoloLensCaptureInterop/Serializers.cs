@@ -28,7 +28,8 @@ namespace HoloLensCaptureInterop
     /// </summary>
     public static class Serializers
     {
-        private static readonly WaveFormat AssumedWaveFormat = WaveFormat.CreateIeeeFloat(48000, 1);
+        private static readonly WaveFormat AssumedWaveFormat =
+            WaveFormat.Create16kHz1Channel16BitPcm();
 
         /// <summary>
         /// Format for <see cref="SceneObjectCollection"/>.

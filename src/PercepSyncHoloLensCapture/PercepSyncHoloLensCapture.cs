@@ -263,11 +263,18 @@ namespace PercepSyncHoloLensCapture
                                     : null;
 
                                 // AUDIO
+                                // Resample into 16KHz, 1 channel, 16-bit PCM for compatibility with Linux machines.
+                                var audioResampler = new AudioResampler(
+                                    pipeline,
+                                    new AudioResamplerConfiguration
+                                    {
+                                        OutputFormat = WaveFormat.Create16kHz1Channel16BitPcm()
+                                    }
+                                );
                                 audio = Config.Sensors.Audio
-                                    ? new Microphone(pipeline).Reframe(
-                                        16384,
-                                        DeliveryPolicy.Unlimited
-                                    )
+                                    ? new Microphone(pipeline)
+                                        .PipeTo(audioResampler)
+                                        .Reframe(16384, DeliveryPolicy.Unlimited)
                                     : null;
 
                                 // PHOTOVIDEO CAMERA
