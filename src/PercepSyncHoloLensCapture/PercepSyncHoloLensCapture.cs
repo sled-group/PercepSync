@@ -1,6 +1,3 @@
-// Copyright (c) Microsoft Corporation. All rights reserved.
-// Licensed under the MIT license.
-
 namespace PercepSyncHoloLensCapture
 {
     using System;
@@ -28,6 +25,7 @@ namespace PercepSyncHoloLensCapture
     using Microsoft.Psi.Remoting;
     using Microsoft.Psi.Spatial.Euclidean;
     using StereoKit;
+    using Tomlyn;
     using Windows.Storage;
     using Color = System.Drawing.Color;
     using Microphone = Microsoft.Psi.MixedReality.StereoKit.Microphone;
@@ -36,7 +34,7 @@ namespace PercepSyncHoloLensCapture
     using WinRTGazeSensor = Microsoft.Psi.MixedReality.WinRT.GazeSensor;
 
     /// <summary>
-    /// Capture app used to stream sensor data to the accompanying HoloLensCaptureServer.
+    /// Capture app used to stream sensor data to PercepSync.
     /// </summary>
     public class PercepSyncHoloLensCapture
     {
@@ -55,48 +53,19 @@ namespace PercepSyncHoloLensCapture
         private const float FrameBottomClip = 0.023f; // clip bottom of frame to stay within camera view
         private const float FrameLabelInset = 0.006f;
 
-        // Config settings
-        private static readonly bool IncludeDiagnostics = true;
+        // Configuration
+        private static Config Config = new();
 
-        private static readonly bool IncludeVideo = true;
-        private static readonly bool IncludePreview = false;
-
-        // see https://docs.microsoft.com/en-us/windows/mixed-reality/develop/platform-capabilities-and-apis/locatable-camera#hololens-2
-        // for different possible modes, such as: 896x504 @30/15; 960x540 @30,15; 1128x636 @30,15; 1280x720 @30/15 etc.
-        private static readonly int PhotoVideoFps = 30;
-        private static readonly int PhotoVideoImageWidth = 896;
-        private static readonly int PhotoVideoImageHeight = 504;
-
-        private static readonly bool IncludeDepth = true;
-        private static readonly bool IncludeDepthCalibrationMap = false;
-        private static readonly bool IncludeAhat = false;
-        private static readonly bool IncludeAhatCalibrationMap = false;
-        private static readonly bool IncludeDepthInfrared = false;
-        private static readonly bool IncludeAhatInfrared = false;
-        private static readonly bool EncodeInfrared = false;
-
-        private static readonly bool IncludeGrayFrontCameras = true;
-        private static readonly bool IncludeGrayFrontCameraCalibrationMap = false;
-        private static readonly bool IncludeGraySideCameras = false;
-        private static readonly bool IncludeGraySideCameraCalibrationMap = false;
-        private static readonly GrayImageEncode EncodeGrayMethod = GrayImageEncode.Jpeg;
+        private static GrayImageEncode EncodeGrayMethod = GrayImageEncode.Jpeg;
         private static readonly TimeSpan GrayInterval = TimeSpan.FromMilliseconds(100);
         private static readonly TimeSpan CalibrationMapInterval = TimeSpan.FromHours(1);
 
         private static readonly string CalibrationFolderName = "Calibration";
 
-        private static readonly bool IncludeImu = true;
-
-        private static readonly bool IncludeHead = true;
         private static readonly TimeSpan HeadInterval = TimeSpan.FromMilliseconds(20);
-        private static readonly bool IncludeEyes = true;
         private static readonly TimeSpan EyesInterval = TimeSpan.FromSeconds(1.0 / 45.0);
-        private static readonly bool IncludeHands = true;
         private static readonly TimeSpan HandsInterval = TimeSpan.FromSeconds(1.0 / 45.0);
 
-        private static readonly bool IncludeAudio = true;
-
-        private static readonly bool IncludeSceneUnderstanding = true;
         private static readonly TimeSpan SceneUnderstandingInterval = TimeSpan.FromSeconds(60);
         private static readonly SceneQuerySettings SceneUnderstandingSettings =
             new()
@@ -121,8 +90,6 @@ namespace PercepSyncHoloLensCapture
 
         private static readonly Vec2 LabelSize = new(FrameWidth - FrameLabelInset * 2f, 0.008f);
 
-        private static string captureServerAddress = "0.0.0.0";
-
         private enum State
         {
             WaitingToStart, // showing menu to Start / Exit
@@ -144,6 +111,14 @@ namespace PercepSyncHoloLensCapture
             Gzip,
         }
 
+        private static readonly Dictionary<string, GrayImageEncode> GrayImageEncodeNameMap =
+            new()
+            {
+                { "none", GrayImageEncode.None },
+                { "jpeg", GrayImageEncode.Jpeg },
+                { "gzip", GrayImageEncode.Gzip },
+            };
+
         private static void Main()
         {
             // Initialize StereoKit
@@ -163,9 +138,9 @@ namespace PercepSyncHoloLensCapture
             // Initialize MixedReality statistics
             MixedReality.Initialize(regenerateDefaultWorldSpatialAnchorIfNeeded: true);
 
-            // Attempt to get server address from config file
+            // Read the config file
             var docs = KnownFolders.DocumentsLibrary;
-            InitializeCaptureServerAddressAsync(docs, "CaptureServerIP.txt")
+            InitializeConfigAsync(docs, "PercepSyncHoloLensCaptureConfig.toml")
                 .GetAwaiter()
                 .GetResult();
 
@@ -228,7 +203,7 @@ namespace PercepSyncHoloLensCapture
                             UI.EnableFarInteract = true;
                             lastServerHeartBeat = DateTime.MaxValue;
                             UI.HandleBegin("Handle", ref windowPose, windowBounds, true);
-                            UI.Label($"Server: {captureServerAddress}");
+                            UI.Label($"Server: {Config.PercepSync.Address}");
                             if (UI.Button($"Start"))
                             {
                                 state = State.ConstructPipeline;
@@ -251,7 +226,7 @@ namespace PercepSyncHoloLensCapture
                             Task.Run(() =>
                             {
                                 pipeline = Pipeline.Create(
-                                    enableDiagnostics: IncludeDiagnostics,
+                                    enableDiagnostics: Config.Sensors.Diagnostics,
                                     diagnosticsConfiguration: new DiagnosticsConfiguration()
                                     {
                                         SamplingInterval = TimeSpan.FromSeconds(5),
@@ -259,15 +234,19 @@ namespace PercepSyncHoloLensCapture
                                 );
 
                                 // IMU SENSORS
-                                accelerometer = IncludeImu ? new Accelerometer(pipeline) : null;
-                                gyroscope = IncludeImu ? new Gyroscope(pipeline) : null;
-                                magnetometer = IncludeImu ? new Magnetometer(pipeline) : null;
+                                accelerometer = Config.Sensors.Imu
+                                    ? new Accelerometer(pipeline)
+                                    : null;
+                                gyroscope = Config.Sensors.Imu ? new Gyroscope(pipeline) : null;
+                                magnetometer = Config.Sensors.Imu
+                                    ? new Magnetometer(pipeline)
+                                    : null;
 
                                 // HEAD, EYES, AND HANDS
-                                head = IncludeHead
+                                head = Config.Sensors.Head
                                     ? new StereoKitHeadSensor(pipeline, HeadInterval)
                                     : null;
-                                eyes = IncludeEyes
+                                eyes = Config.Sensors.Eyes
                                     ? new WinRTGazeSensor(
                                         pipeline,
                                         new GazeSensorConfiguration()
@@ -279,12 +258,12 @@ namespace PercepSyncHoloLensCapture
                                     )
                                     : null;
 
-                                hands = IncludeHands
+                                hands = Config.Sensors.Hands
                                     ? new OpenXRHandsSensor(pipeline, HandsInterval)
                                     : null;
 
                                 // AUDIO
-                                audio = IncludeAudio
+                                audio = Config.Sensors.Audio
                                     ? new Microphone(pipeline).Reframe(
                                         16384,
                                         DeliveryPolicy.Unlimited
@@ -292,23 +271,23 @@ namespace PercepSyncHoloLensCapture
                                     : null;
 
                                 // PHOTOVIDEO CAMERA
-                                var videoStreamSettings = IncludeVideo
+                                var videoStreamSettings = Config.Sensors.Video
                                     ? new PhotoVideoCameraConfiguration.StreamSettings
                                     {
-                                        FrameRate = PhotoVideoFps,
-                                        ImageWidth = PhotoVideoImageWidth,
-                                        ImageHeight = PhotoVideoImageHeight,
+                                        FrameRate = Config.Video.Fps,
+                                        ImageWidth = Config.Video.Width,
+                                        ImageHeight = Config.Video.Height,
                                         OutputEncodedImage = false,
                                         OutputEncodedImageCameraView = true,
                                     }
                                     : null;
 
-                                var previewStreamSettings = IncludePreview
+                                var previewStreamSettings = Config.Sensors.Preview
                                     ? new PhotoVideoCameraConfiguration.StreamSettings
                                     {
-                                        FrameRate = PhotoVideoFps,
-                                        ImageWidth = PhotoVideoImageWidth,
-                                        ImageHeight = PhotoVideoImageHeight,
+                                        FrameRate = Config.Video.Fps,
+                                        ImageWidth = Config.Video.Width,
+                                        ImageHeight = Config.Video.Height,
                                         OutputEncodedImage = false,
                                         OutputEncodedImageCameraView = true,
                                         MixedRealityCapture = new(),
@@ -316,7 +295,7 @@ namespace PercepSyncHoloLensCapture
                                     : null;
 
                                 camera =
-                                    IncludeVideo || IncludePreview
+                                    Config.Sensors.Video || Config.Sensors.Preview
                                         ? new PhotoVideoCamera(
                                             pipeline,
                                             new PhotoVideoCameraConfiguration
@@ -330,9 +309,9 @@ namespace PercepSyncHoloLensCapture
                                 // DEPTH CAMERA - LONG THROW
                                 depthCamera =
                                     (
-                                        IncludeDepth
-                                        || IncludeDepthInfrared
-                                        || IncludeDepthCalibrationMap
+                                        Config.Sensors.Depth
+                                        || Config.Sensors.DepthInfrared
+                                        || Config.Sensors.DepthCalibrationMap
                                     )
                                         ? new DepthCamera(
                                             pipeline,
@@ -344,11 +323,13 @@ namespace PercepSyncHoloLensCapture
                                                 OutputPose = false,
                                                 OutputDepthImage = false,
                                                 OutputInfraredImage = false,
-                                                OutputDepthImageCameraView = IncludeDepth,
-                                                OutputInfraredImageCameraView =
-                                                    IncludeDepthInfrared,
-                                                OutputCalibrationPointsMap =
-                                                    IncludeDepthCalibrationMap,
+                                                OutputDepthImageCameraView = Config.Sensors.Depth,
+                                                OutputInfraredImageCameraView = Config
+                                                    .Sensors
+                                                    .DepthInfrared,
+                                                OutputCalibrationPointsMap = Config
+                                                    .Sensors
+                                                    .DepthCalibrationMap,
                                                 OutputCalibrationPointsMapMinInterval =
                                                     CalibrationMapInterval,
                                             }
@@ -358,9 +339,9 @@ namespace PercepSyncHoloLensCapture
                                 // DEPTH CAMERA - AHAT
                                 depthAhatCamera =
                                     (
-                                        IncludeAhat
-                                        || IncludeAhatInfrared
-                                        || IncludeAhatCalibrationMap
+                                        Config.Sensors.Ahat
+                                        || Config.Sensors.AhatInfrared
+                                        || Config.Sensors.AhatCalibrationMap
                                     )
                                         ? new DepthCamera(
                                             pipeline,
@@ -371,10 +352,13 @@ namespace PercepSyncHoloLensCapture
                                                 OutputPose = false,
                                                 OutputDepthImage = false,
                                                 OutputInfraredImage = false,
-                                                OutputDepthImageCameraView = IncludeAhat,
-                                                OutputInfraredImageCameraView = IncludeAhatInfrared,
-                                                OutputCalibrationPointsMap =
-                                                    IncludeAhatCalibrationMap,
+                                                OutputDepthImageCameraView = Config.Sensors.Ahat,
+                                                OutputInfraredImageCameraView = Config
+                                                    .Sensors
+                                                    .AhatInfrared,
+                                                OutputCalibrationPointsMap = Config
+                                                    .Sensors
+                                                    .AhatCalibrationMap,
                                                 OutputCalibrationPointsMapMinInterval =
                                                     CalibrationMapInterval,
                                             }
@@ -382,7 +366,7 @@ namespace PercepSyncHoloLensCapture
                                         : null;
 
                                 // GRAY FRONT CAMERAS
-                                leftFrontCamera = IncludeGrayFrontCameras
+                                leftFrontCamera = Config.Sensors.GrayFrontCameras
                                     ? new VisibleLightCamera(
                                         pipeline,
                                         new VisibleLightCameraConfiguration
@@ -394,15 +378,16 @@ namespace PercepSyncHoloLensCapture
                                             OutputPose = false,
                                             OutputImage = false,
                                             OutputImageCameraView = true,
-                                            OutputCalibrationPointsMap =
-                                                IncludeGrayFrontCameraCalibrationMap,
+                                            OutputCalibrationPointsMap = Config
+                                                .Sensors
+                                                .GrayFrontCameraCalibrationMap,
                                             OutputCalibrationPointsMapMinInterval =
                                                 CalibrationMapInterval,
                                         }
                                     )
                                     : null;
 
-                                rightFrontCamera = IncludeGrayFrontCameras
+                                rightFrontCamera = Config.Sensors.GrayFrontCameras
                                     ? new VisibleLightCamera(
                                         pipeline,
                                         new VisibleLightCameraConfiguration
@@ -414,8 +399,9 @@ namespace PercepSyncHoloLensCapture
                                             OutputPose = false,
                                             OutputImage = false,
                                             OutputImageCameraView = true,
-                                            OutputCalibrationPointsMap =
-                                                IncludeGrayFrontCameraCalibrationMap,
+                                            OutputCalibrationPointsMap = Config
+                                                .Sensors
+                                                .GrayFrontCameraCalibrationMap,
                                             OutputCalibrationPointsMapMinInterval =
                                                 CalibrationMapInterval,
                                         }
@@ -423,7 +409,7 @@ namespace PercepSyncHoloLensCapture
                                     : null;
 
                                 // GRAY SIDE CAMERAS
-                                leftLeftCamera = IncludeGraySideCameras
+                                leftLeftCamera = Config.Sensors.GraySideCameras
                                     ? new VisibleLightCamera(
                                         pipeline,
                                         new VisibleLightCameraConfiguration
@@ -435,15 +421,16 @@ namespace PercepSyncHoloLensCapture
                                             OutputPose = false,
                                             OutputImage = false,
                                             OutputImageCameraView = true,
-                                            OutputCalibrationPointsMap =
-                                                IncludeGraySideCameraCalibrationMap,
+                                            OutputCalibrationPointsMap = Config
+                                                .Sensors
+                                                .GraySideCameraCalibrationMap,
                                             OutputCalibrationPointsMapMinInterval =
                                                 CalibrationMapInterval,
                                         }
                                     )
                                     : null;
 
-                                rightRightCamera = IncludeGraySideCameras
+                                rightRightCamera = Config.Sensors.GraySideCameras
                                     ? new VisibleLightCamera(
                                         pipeline,
                                         new VisibleLightCameraConfiguration
@@ -455,8 +442,9 @@ namespace PercepSyncHoloLensCapture
                                             OutputPose = false,
                                             OutputImage = false,
                                             OutputImageCameraView = true,
-                                            OutputCalibrationPointsMap =
-                                                IncludeGraySideCameraCalibrationMap,
+                                            OutputCalibrationPointsMap = Config
+                                                .Sensors
+                                                .GraySideCameraCalibrationMap,
                                             OutputCalibrationPointsMapMinInterval =
                                                 CalibrationMapInterval,
                                         }
@@ -464,7 +452,7 @@ namespace PercepSyncHoloLensCapture
                                     : null;
 
                                 // SCENE UNDERSTANDING
-                                scene = IncludeSceneUnderstanding
+                                scene = Config.Sensors.SceneUnderstanding
                                     ? new SceneUnderstanding(
                                         pipeline,
                                         new SceneUnderstandingConfiguration
@@ -476,12 +464,12 @@ namespace PercepSyncHoloLensCapture
                                     : null;
 
                                 if (
-                                    IncludeDepth
-                                    || IncludeAhat
-                                    || IncludeDepthInfrared
-                                    || IncludeAhatInfrared
-                                    || IncludeGrayFrontCameras
-                                    || IncludeGraySideCameras
+                                    Config.Sensors.Depth
+                                    || Config.Sensors.Ahat
+                                    || Config.Sensors.DepthInfrared
+                                    || Config.Sensors.AhatInfrared
+                                    || Config.Sensors.GrayFrontCameras
+                                    || Config.Sensors.GraySideCameras
                                 )
                                 {
                                     state = State.CalibrateCameras;
@@ -557,7 +545,7 @@ namespace PercepSyncHoloLensCapture
                         case State.ConnectToCaptureServer:
                             UI.HandleBegin("Handle", ref windowPose, windowBounds, true);
                             UI.Label(
-                                $"Please wait! Connecting to capture server: {captureServerAddress}"
+                                $"Please wait! Connecting to capture server: {Config.PercepSync.Address}"
                             );
                             UI.HandleEnd();
                             DrawFrame(Color.Yellow.ToStereoKitColor());
@@ -565,7 +553,9 @@ namespace PercepSyncHoloLensCapture
                             Task.Run(() =>
                             {
                                 // Create the rendezvous client and process
-                                var rendezvousClient = new RendezvousClient(captureServerAddress);
+                                var rendezvousClient = new RendezvousClient(
+                                    Config.PercepSync.Address
+                                );
                                 var remoteClock = new RemoteClockExporter();
 
                                 void ResetState()
@@ -646,7 +636,7 @@ namespace PercepSyncHoloLensCapture
 
                                     var port = 30000;
 
-                                    if (IncludeImu)
+                                    if (Config.Sensors.Imu)
                                     {
                                         Write(
                                             "Accelerometer",
@@ -671,7 +661,7 @@ namespace PercepSyncHoloLensCapture
                                         );
                                     }
 
-                                    if (IncludeHead)
+                                    if (Config.Sensors.Head)
                                     {
                                         Write(
                                             "Head",
@@ -682,7 +672,7 @@ namespace PercepSyncHoloLensCapture
                                         );
                                     }
 
-                                    if (IncludeEyes)
+                                    if (Config.Sensors.Eyes)
                                     {
                                         Write(
                                             "Eyes",
@@ -693,7 +683,7 @@ namespace PercepSyncHoloLensCapture
                                         );
                                     }
 
-                                    if (IncludeHands)
+                                    if (Config.Sensors.Hands)
                                     {
                                         Write(
                                             "Hands",
@@ -704,7 +694,7 @@ namespace PercepSyncHoloLensCapture
                                         );
                                     }
 
-                                    if (IncludeAudio)
+                                    if (Config.Sensors.Audio)
                                     {
                                         Write(
                                             "Audio",
@@ -715,7 +705,7 @@ namespace PercepSyncHoloLensCapture
                                         );
                                     }
 
-                                    if (IncludeVideo)
+                                    if (Config.Sensors.Video)
                                     {
                                         Write(
                                             "VideoEncodedImageCameraView",
@@ -726,7 +716,7 @@ namespace PercepSyncHoloLensCapture
                                         );
                                     }
 
-                                    if (IncludePreview)
+                                    if (Config.Sensors.Preview)
                                     {
                                         Write(
                                             "PreviewEncodedImageCameraView",
@@ -737,7 +727,7 @@ namespace PercepSyncHoloLensCapture
                                         );
                                     }
 
-                                    if (IncludeDepth)
+                                    if (Config.Sensors.Depth)
                                     {
                                         Write(
                                             "DepthImageCameraView",
@@ -748,9 +738,9 @@ namespace PercepSyncHoloLensCapture
                                         );
                                     }
 
-                                    if (IncludeDepthInfrared)
+                                    if (Config.Sensors.DepthInfrared)
                                     {
-                                        if (EncodeInfrared)
+                                        if (Config.Infrared.Encode)
                                         {
                                             var infraredEncodedImageCameraView =
                                                 depthCamera?.InfraredImageCameraView.Encode(
@@ -777,7 +767,7 @@ namespace PercepSyncHoloLensCapture
                                         }
                                     }
 
-                                    if (IncludeDepthCalibrationMap)
+                                    if (Config.Sensors.DepthCalibrationMap)
                                     {
                                         Write(
                                             "DepthCalibrationMap",
@@ -788,7 +778,7 @@ namespace PercepSyncHoloLensCapture
                                         );
                                     }
 
-                                    if (IncludeAhat)
+                                    if (Config.Sensors.Ahat)
                                     {
                                         Write(
                                             "AhatDepthImageCameraView",
@@ -799,9 +789,9 @@ namespace PercepSyncHoloLensCapture
                                         );
                                     }
 
-                                    if (IncludeAhatInfrared)
+                                    if (Config.Sensors.AhatInfrared)
                                     {
-                                        if (EncodeInfrared)
+                                        if (Config.Infrared.Encode)
                                         {
                                             var infraredEncodedImageCameraView =
                                                 depthAhatCamera?.InfraredImageCameraView.Encode(
@@ -828,7 +818,7 @@ namespace PercepSyncHoloLensCapture
                                         }
                                     }
 
-                                    if (IncludeAhatCalibrationMap)
+                                    if (Config.Sensors.AhatCalibrationMap)
                                     {
                                         Write(
                                             "AhatDepthCalibrationMap",
@@ -839,7 +829,7 @@ namespace PercepSyncHoloLensCapture
                                         );
                                     }
 
-                                    if (IncludeGrayFrontCameras)
+                                    if (Config.Sensors.GrayFrontCameras)
                                     {
                                         switch (EncodeGrayMethod)
                                         {
@@ -949,7 +939,7 @@ namespace PercepSyncHoloLensCapture
                                                 break;
                                         }
 
-                                        if (IncludeGrayFrontCameraCalibrationMap)
+                                        if (Config.Sensors.GrayFrontCameraCalibrationMap)
                                         {
                                             Write(
                                                 "LeftFrontCalibrationMap",
@@ -968,7 +958,7 @@ namespace PercepSyncHoloLensCapture
                                         }
                                     }
 
-                                    if (IncludeGraySideCameras)
+                                    if (Config.Sensors.GraySideCameras)
                                     {
                                         switch (EncodeGrayMethod)
                                         {
@@ -1078,7 +1068,7 @@ namespace PercepSyncHoloLensCapture
                                                 break;
                                         }
 
-                                        if (IncludeGraySideCameraCalibrationMap)
+                                        if (Config.Sensors.GraySideCameraCalibrationMap)
                                         {
                                             Write(
                                                 "LeftLeftCalibrationMap",
@@ -1097,7 +1087,7 @@ namespace PercepSyncHoloLensCapture
                                         }
                                     }
 
-                                    if (IncludeSceneUnderstanding)
+                                    if (Config.Sensors.SceneUnderstanding)
                                     {
                                         Write(
                                             "SceneUnderstanding",
@@ -1108,7 +1098,7 @@ namespace PercepSyncHoloLensCapture
                                         );
                                     }
 
-                                    if (IncludeDiagnostics)
+                                    if (Config.Sensors.Diagnostics)
                                     {
                                         Write(
                                             "HoloLensDiagnostics",
@@ -1161,7 +1151,7 @@ namespace PercepSyncHoloLensCapture
                             else
                             {
                                 UI.Label(
-                                    $"Please wait! Connecting to capture server: {captureServerAddress}"
+                                    $"Please wait! Connecting to capture server: {Config.PercepSync.Address}"
                                 );
                                 if (UI.Button($"Stop"))
                                 {
@@ -1191,7 +1181,7 @@ namespace PercepSyncHoloLensCapture
                                                 // note: using captureServerAddress -- ignoring tcpEndpoint.Host (0.0.0.0)
                                                 var serverHeartbeat = new TcpSource<(float, float)>(
                                                     pipeline,
-                                                    captureServerAddress,
+                                                    Config.PercepSync.Address,
                                                     tcpEndpoint.Port,
                                                     Serializers.HeartbeatFormat()
                                                 );
@@ -1285,25 +1275,25 @@ namespace PercepSyncHoloLensCapture
             SK.Shutdown();
         }
 
-        private static async Task InitializeCaptureServerAddressAsync(
-            StorageFolder folder,
-            string configFile
-        )
+        private static async Task InitializeConfigAsync(StorageFolder folder, string configFile)
         {
             try
             {
                 var config = await folder.GetFileAsync(configFile);
-                captureServerAddress = await FileIO.ReadTextAsync(config);
+                var configStr = await FileIO.ReadTextAsync(config);
+                Config = Toml.ToModel<Config>(configStr);
             }
             catch (FileNotFoundException)
             {
                 // use default and save sample settings file
-                var config = await folder.CreateFileAsync(
+                Config = new Config();
+                var file = await folder.CreateFileAsync(
                     configFile,
                     CreationCollisionOption.FailIfExists
                 );
-                await FileIO.WriteTextAsync(config, captureServerAddress);
+                await FileIO.WriteTextAsync(file, Toml.FromModel(Config));
             }
+            EncodeGrayMethod = GrayImageEncodeNameMap[Config.Gray.EncodeMethod];
         }
 
         private static void DrawFrame(Color32 color, string labelText = null)

@@ -59,6 +59,7 @@
     <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="Config.cs" />
     <Compile Include="PercepSyncHoloLensCapture.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
@@ -113,6 +114,9 @@
     </PackageReference>
     <PackageReference Include="Microsoft.Psi.Spatial.Euclidean">
       <Version>0.18.72.1-beta</Version>
+    </PackageReference>
+    <PackageReference Include="Tomlyn">
+      <Version>0.16.2</Version>
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
