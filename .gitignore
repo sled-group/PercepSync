@@ -623,3 +623,6 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# Visual Studio project properties
+[Pp]roperties
