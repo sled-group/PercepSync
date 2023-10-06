@@ -83,7 +83,6 @@
   <ItemGroup>
     <Content Include="$(ProjectDir)Assets\**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <Link>Assets\%(RecursiveDir)%(Filename)%(Extension)</Link>
     </Content>
   </ItemGroup>
   <ItemGroup>
