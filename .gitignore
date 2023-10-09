@@ -626,3 +626,9 @@ FodyWeavers.xsd
 
 # Visual Studio project properties
 [Pp]roperties
+
+# Python virtualenv
+venv/
+
+# Ignore TOML configuration files
+*.toml

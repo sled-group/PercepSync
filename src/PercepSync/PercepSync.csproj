@@ -15,16 +15,19 @@
 
   <ItemGroup>
     <PackageReference Include="GtkSharp" Version="3.24.24.95" />
+    <PackageReference Include="Microsoft.CognitiveServices.Speech" Version="1.32.1" />
     <PackageReference Include="Microsoft.Psi.Audio" Version="0.18.72.1-beta" />
     <PackageReference Include="Microsoft.Psi.Audio.Linux" Version="0.18.72.1-beta" />
     <PackageReference Include="Microsoft.Psi.Interop" Version="0.18.72.1-beta" />
     <PackageReference Include="Microsoft.Psi.Media.Linux" Version="0.18.72.1-beta" />
     <PackageReference Include="Microsoft.Psi.Runtime" Version="0.18.72.1-beta" />
+    <PackageReference Include="NetMQ" Version="4.0.1.13" />
     <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
+    <PackageReference Include="Tomlyn" Version="0.16.2" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\HoloLensCaptureInterop\HoloLensCaptureInterop.csproj">
+    <ProjectReference Include="../HoloLensCaptureInterop/HoloLensCaptureInterop.csproj">
       <Project>{a3c3ccb5-ae71-4522-ad34-bc3e7b5ce72e}</Project>
       <Name>HoloLensCaptureInterop</Name>
     </ProjectReference>

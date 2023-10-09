@@ -37,4 +37,32 @@ namespace Sled.PercepSync
             this.buffer = buffer;
         }
     }
+
+    /// <summary>
+    /// Represents a text-to-speech request from a client
+    /// </summary>
+    [MessagePackObject(keyAsPropertyName: true)]
+    public class TtsRequest
+    {
+        public string text { get; set; }
+
+        public TtsRequest(string text)
+        {
+            this.text = text;
+        }
+    }
+
+    /// <summary>
+    /// Represents text-to-speech audio data
+    /// </summary>
+    [MessagePackObject(keyAsPropertyName: true)]
+    public class TtsAudio
+    {
+        public Audio audio { get; set; }
+
+        public TtsAudio(Audio audio)
+        {
+            this.audio = audio;
+        }
+    }
 }

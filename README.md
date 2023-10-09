@@ -52,7 +52,38 @@ $ pip install -r samples/requirements.txt
 $ python samples/simple_subscriber.py
 ```
 
-## Data Format
+### Text-to-speech
+You can enable text-to-speech by passing the `--enable-tts` option. `PercepSync` relies on [Microsoft Azure Speech Service](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/speech-sdk) to generate speech, so make sure you also pass in your Azure credentials via a config file. In the local mode, the speech will be played via the speaker, while in the HoloLens mode, the speech will be played on the HoloLens.
+
+**NOTE: Microsoft Azure Speech Service SDK relies on OpenSSL 1.x, which is no longer shipped with Ubuntu 22.04. As a result, you need to install OpenSSL 1.x from sources. Instructions can be found [here](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/quickstarts/setup-platform?tabs=linux%2Cubuntu%2Cdotnetcli%2Cdotnet%2Cjre%2Cmaven%2Cnodejs%2Cmac%2Cpypi&pivots=programming-language-csharp#platform-requirements). Please make sure you set the environment variable `SSL_CERT_DIR=/etc/ssl/certs`.**
+
+```bash
+$ cat config.toml
+[azure_speech_config]
+subscription_key = "your-azure-subscription-key"
+region = "your-region"
+
+# local mode
+$ ./PercepSync --config-file config.toml --enable-tts local
+
+# hololens mode
+$ ./PercepSync --config-file config.toml --enable-tts hololens
+```
+
+Now in another terminal, run the sample script.
+
+```bash
+# Install the required packages
+$ pip install -r samples/requirements.txt
+
+# Now, run it!
+$ python samples/simple_tts.py
+TTS Text: Hello, world!
+```
+
+**NOTE: There is an issue where some TTS requests are not played through the audio output device on Linux. Typically, every other TTS requests are played. We don't know the root cause yet, but it will be fixed as soon as it is identified.**
+
+## Perceptual Sensor Stream Data Format
 
 `PercepSync` uses [ZeroMQ](https://zeromq.org/) to publish data from different input devices. Data that can be synchronized will be synchronized and published to a single topic. The serialization format is [MessagePack](https://msgpack.org/).
 
@@ -84,6 +115,16 @@ Here's the list of available topics and their data formats:
 ```
 
 **NOTE: Synchronizing a single video frame and an audio buffer conceptually do not make sense since they operate on different frequencies. What we could do is to pair up a list of video frames and an audio buffer within the same timeframe. Let us know if you need this, and we'll implement it.**
+
+## Text-to-speech Data Format
+
+`PercepSync` uses [ZeroMQ](https://zeromq.org/) to accept text-to-speech requests data from different clients. It uses the [Push-Pull pattern](https://learning-0mq-with-pyzmq.readthedocs.io/en/latest/pyzmq/patterns/pushpull.html). The serialization format is [MessagePack](https://msgpack.org/). Please see the [sample script](samples/simple_tts.py) for more details. See below for the request format:
+
+```python
+{
+    "text": str
+}
+```
 
 ## Switching Local Devices
 
