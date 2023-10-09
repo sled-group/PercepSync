@@ -9,6 +9,8 @@
     using Microsoft.Psi.Interop.Rendezvous;
     using Microsoft.Psi.Imaging;
     using System.CommandLine;
+    using Tomlyn;
+    using HoloLensCaptureInterop;
 
     /// <summary>
     /// PercepSync synchronizes streams of data from different perceptions and broadcast them.
@@ -18,13 +20,12 @@
         private static RendezvousServer? rendezvousServer;
         private static Pipeline? percepSyncPipeline;
         private static Preview? preview;
-        private static LocalDevicesCapture? localDevicesCapture;
         private static readonly ManualResetEventSlim clientConnectedEvent = new();
 
         private const string VideoFrameTopic = "videoFrame";
         private const string AudioTopic = "audio";
         private const string HoloLensCaptureServerProcessName = "HoloLensCaptureServer"; // HoloLensCaptureApp expects this. Should be changed later
-        private const string HoloLensCaptureAppProcessName = "HoloLensCaptureApp";
+        private const string PercepSyncHoloLensCaptureProcessName = "PercepSyncHoloLensCapture";
         private const string HoloLensCaptureAppVersion = "v1";
         private const string HoloLensVideoStreamName = "VideoEncodedImageCameraView";
         private const string HoloLensAudioStreamName = "Audio";
@@ -32,111 +33,230 @@
         public static void Main(string[] args)
         {
             var rootCommand = new RootCommand("PercepSync");
-            var zeroMQPubAddressOption = new Option<string>(
-                name: "--zeromq-pub-address",
-                description: "Address for ZeroMQ publish socket",
-                getDefaultValue: () => "tcp://*:12345"
+            var configFileOption = new Option<string>(
+                name: "--config-file",
+                description: "Path to config file (TOML)"
             );
-            rootCommand.AddOption(zeroMQPubAddressOption);
+            rootCommand.AddOption(configFileOption);
+            var percepStreamAddressOption = new Option<string>(
+                name: "--percep-stream-address",
+                description: "Address for perception streams. Implemented as a ZeroMQ publish socket.",
+                getDefaultValue: () => Config.DefaultPercepStreamAddress
+            );
+            rootCommand.AddOption(percepStreamAddressOption);
             var enablePreviewOption = new Option<bool>(
                 name: "--enable-preview",
                 description: "Whether to enable preview or not. Only works if you have a display.",
-                getDefaultValue: () => false
+                getDefaultValue: () => Config.DefaultEnablePreview
             );
             rootCommand.AddOption(enablePreviewOption);
             var rdzvServerPortOption = new Option<int>(
                 name: "--rdzv-server-port",
                 description: "Rendezvous server port",
-                getDefaultValue: () => 13331
+                getDefaultValue: () => Config.DefaultRdzvServerPort
             );
             rootCommand.AddOption(rdzvServerPortOption);
+            var enableTtsOption = new Option<bool>(
+                name: "--enable-tts",
+                description: "Whether to enable text-to-speech or not. Make sure to set Azure creds if enabled.",
+                getDefaultValue: () => Config.DefaultEnableTts
+            );
+            rootCommand.AddOption(enableTtsOption);
+            var ttsAddressOption = new Option<string>(
+                name: "--tts-address",
+                description: "Address for text-to-speech server. Implemented as a ZeroMQ pull socket.",
+                getDefaultValue: () => Config.DefaultTtsAddress
+            );
+            rootCommand.AddOption(ttsAddressOption);
 
             var localCommand = new Command("local", description: "Use local devices");
             var localCameraDeviceIDOption = new Option<string>(
                 name: "--camera-device-id",
                 description: "Camera device ID",
-                getDefaultValue: () => "/dev/video0"
+                getDefaultValue: () => LocalConfig.DefaultCameraDeviceId
             );
             localCommand.Add(localCameraDeviceIDOption);
-            var localAudioDeviceNameOption = new Option<string>(
-                name: "--audio-device-name",
-                description: "Audio device name",
-                getDefaultValue: () => "plughw:0,0"
+            var localAudioInputDeviceNameOption = new Option<string>(
+                name: "--audio-input-device-name",
+                description: "Audio input device name",
+                getDefaultValue: () => LocalConfig.DefaultAudioInputDeviceName
             );
-            localCommand.Add(localAudioDeviceNameOption);
+            localCommand.Add(localAudioInputDeviceNameOption);
+            var localAudioOutputDeviceNameOption = new Option<string>(
+                name: "--audio-output-device-name",
+                description: "Audio output device name",
+                getDefaultValue: () => LocalConfig.DefaultAudioOutputDeviceName
+            );
+            localCommand.Add(localAudioOutputDeviceNameOption);
             rootCommand.Add(localCommand);
-            localCommand.SetHandler(
-                (
-                    zeroMQPubAddress,
-                    enablePreview,
-                    rdzvServerPort,
-                    localCameraDeviceID,
-                    localAudioDeviceName
-                ) =>
+
+            Config CreateConfig(
+                string? configFile,
+                string? percepStreamAddress,
+                bool enablePreview,
+                int rdzvServerPort,
+                bool enableTts,
+                string? ttsAddress
+            )
+            {
+                Config config;
+                if (configFile is null)
                 {
-                    RunPercepSync(
-                        zeroMQPubAddress,
-                        enablePreview,
-                        rdzvServerPort,
-                        nameof(LocalDevicesCapture),
-                        ConstructLocalSensorStreams,
-                        localDevicesCapture: localDevicesCapture = new LocalDevicesCapture(
-                            "127.0.0.1",
-                            rdzvServerPort,
-                            localCameraDeviceID,
-                            localAudioDeviceName
-                        )
+                    config = new();
+                }
+                else
+                {
+                    using (var sr = new StreamReader(configFile))
+                    {
+                        config = Toml.ToModel<Config>(sr.ReadToEnd());
+                    }
+                }
+                if (
+                    percepStreamAddress is not null
+                    && percepStreamAddress != Config.DefaultPercepStreamAddress
+                )
+                {
+                    config.PercepStreamAddress = percepStreamAddress;
+                }
+                if (enablePreview != Config.DefaultEnablePreview)
+                {
+                    config.EnablePreview = enablePreview;
+                }
+                if (rdzvServerPort != Config.DefaultRdzvServerPort)
+                {
+                    config.RdzvServerPort = rdzvServerPort;
+                }
+                if (enableTts != Config.DefaultEnableTts)
+                {
+                    config.EnableTts = enableTts;
+                }
+                if (ttsAddress is not null && ttsAddress != Config.DefaultTtsAddress)
+                {
+                    config.TtsAddress = ttsAddress;
+                }
+                return config;
+            }
+
+            localCommand.SetHandler(
+                (context) =>
+                {
+                    var config = CreateConfig(
+                        context.ParseResult.GetValueForOption(configFileOption),
+                        context.ParseResult.GetValueForOption(percepStreamAddressOption),
+                        context.ParseResult.GetValueForOption(enablePreviewOption),
+                        context.ParseResult.GetValueForOption(rdzvServerPortOption),
+                        context.ParseResult.GetValueForOption(enableTtsOption),
+                        context.ParseResult.GetValueForOption(ttsAddressOption)
                     );
-                },
-                zeroMQPubAddressOption,
-                enablePreviewOption,
-                rdzvServerPortOption,
-                localCameraDeviceIDOption,
-                localAudioDeviceNameOption
+                    var cameraDeviceID = context.ParseResult.GetValueForOption(
+                        localCameraDeviceIDOption
+                    );
+                    var audioInputDeviceName = context.ParseResult.GetValueForOption(
+                        localAudioInputDeviceNameOption
+                    );
+                    var audioOutputDeviceName = context.ParseResult.GetValueForOption(
+                        localAudioOutputDeviceNameOption
+                    );
+                    if (config.LocalConfig is null)
+                    {
+                        // LocalConfig wasn't specified from the config file,
+                        // so create one based on the values from the CLI.
+                        config.LocalConfig = new()
+                        {
+                            CameraDeviceId = cameraDeviceID!,
+                            AudioInputDeviceName = audioInputDeviceName!,
+                            AudioOutputDeviceName = audioOutputDeviceName!,
+                        };
+                    }
+                    else
+                    {
+                        // LocalConfig was specified from the config file.
+                        // Override values if specified via CLI.
+                        if (cameraDeviceID != LocalConfig.DefaultCameraDeviceId)
+                        {
+                            config.LocalConfig.CameraDeviceId = cameraDeviceID!;
+                        }
+                        if (audioInputDeviceName != LocalConfig.DefaultAudioInputDeviceName)
+                        {
+                            config.LocalConfig.AudioInputDeviceName = audioInputDeviceName!;
+                        }
+                        if (audioOutputDeviceName != LocalConfig.DefaultAudioOutputDeviceName)
+                        {
+                            config.LocalConfig.AudioOutputDeviceName = audioOutputDeviceName!;
+                        }
+                    }
+                    RunPercepSync(config, nameof(LocalDevicesCapture), ConstructLocalSensorStreams);
+                    var localDevicesCapture = new LocalDevicesCapture(
+                        "127.0.0.1",
+                        config.RdzvServerPort,
+                        config.LocalConfig.CameraDeviceId,
+                        config.LocalConfig.AudioInputDeviceName
+                    );
+                    localDevicesCapture.Start();
+                    RunCliLoop(config.EnablePreview);
+                }
             );
 
             var hololensCommand = new Command("hololens", description: "Use HoloLens");
             rootCommand.Add(hololensCommand);
             hololensCommand.SetHandler(
-                (zeroMQPubAddress, enablePreview, rdzvServerPort) =>
+                (
+                    configFile,
+                    percepStreamAddress,
+                    enablePreview,
+                    rdzvServerPort,
+                    enableTts,
+                    ttsAddress
+                ) =>
                 {
-                    RunPercepSync(
-                        zeroMQPubAddress,
+                    var config = CreateConfig(
+                        configFile,
+                        percepStreamAddress,
                         enablePreview,
                         rdzvServerPort,
-                        HoloLensCaptureAppProcessName,
+                        enableTts,
+                        ttsAddress
+                    );
+                    if (config.HoloLensConfig is null)
+                    {
+                        config.HoloLensConfig = new();
+                    }
+                    RunPercepSync(
+                        config,
+                        PercepSyncHoloLensCaptureProcessName,
                         ConstructHoloLensSensorStreams,
                         targetProcessVersion: HoloLensCaptureAppVersion
                     );
+                    RunCliLoop(config.EnablePreview);
                 },
-                zeroMQPubAddressOption,
+                configFileOption,
+                percepStreamAddressOption,
                 enablePreviewOption,
-                rdzvServerPortOption
+                rdzvServerPortOption,
+                enableTtsOption,
+                ttsAddressOption
             );
             rootCommand.Invoke(args);
         }
 
         private static void RunPercepSync(
-            string zeroMQPubAddress,
-            bool enablePreview,
-            int rdzvServerPort,
+            Config config,
             string targetProcessName,
-            Func<Rendezvous.Process, SensorStreams> ConstructSensorStreams,
-            string? targetProcessVersion = null,
-            LocalDevicesCapture? localDevicesCapture = null
+            Func<Rendezvous.Process, AzureSpeechSynthesizer?, SensorStreams> ConstructSensorStreams,
+            string? targetProcessVersion = null
         )
         {
-            if (enablePreview)
+            if (config.EnablePreview)
             {
                 Console.WriteLine("Initializing GTK Application");
                 Gtk.Application.Init();
                 InitializeCssStyles();
             }
-            rendezvousServer = new RendezvousServer(rdzvServerPort);
+            rendezvousServer = new RendezvousServer(config.RdzvServerPort);
             rendezvousServer.Rendezvous.ProcessRemoved += (_, process) =>
             {
                 ReportProcessRemoved(process);
-                if (process.Name == HoloLensCaptureAppProcessName)
+                if (process.Name == PercepSyncHoloLensCaptureProcessName)
                 {
                     // NOTE: We don't want to do this for local device capture
                     // since if that's been removed, the whole PercepSync is also
@@ -168,25 +288,53 @@
                             $"SERVER PIPELINE RUNTIME EXCEPTION: {args.Exception.Message}"
                         );
                     };
-                    var mqWriter = new NetMQWriter(
+
+                    // Set up a rendezvous endpoint for text-to-speech
+                    AzureSpeechSynthesizer? speechSynthesizer = null;
+                    if (config.EnableTts)
+                    {
+                        var ttsReceiver = new TtsRequestReceiver(
+                            percepSyncPipeline,
+                            config.TtsAddress
+                        );
+                        speechSynthesizer = new AzureSpeechSynthesizer(
+                            percepSyncPipeline,
+                            config.AzureSpeechConfig.SubscriptionKey,
+                            config.AzureSpeechConfig.Region,
+                            config.AzureSpeechConfig.SpeechSynthesisVoiceName
+                        );
+                        ttsReceiver.PipeTo(speechSynthesizer);
+                        if (config.LocalConfig is not null)
+                        {
+                            // Hook up speech synthesizer to the speaker
+                            var audioPlayer = new AudioPlayer(
+                                percepSyncPipeline,
+                                new AudioPlayerConfiguration(
+                                    config.LocalConfig.AudioOutputDeviceName
+                                )
+                            );
+                            speechSynthesizer.PipeTo(audioPlayer);
+                        }
+                    }
+
+                    // Construct sensor streams
+                    var percepStreamMQWriter = new NetMQWriter(
                         percepSyncPipeline,
-                        zeroMQPubAddress,
+                        config.PercepStreamAddress,
                         MessagePackFormat.Instance
                     );
-                    var sensorStreams = ConstructSensorStreams(process);
+                    var sensorStreams = ConstructSensorStreams(process, speechSynthesizer);
                     sensorStreams.VideoFrameStream.PipeTo(
-                        mqWriter.AddTopic<RawPixelImage>(VideoFrameTopic)
+                        percepStreamMQWriter.AddTopic<RawPixelImage>(VideoFrameTopic)
                     );
-                    sensorStreams.AudioStream.PipeTo(mqWriter.AddTopic<Audio>(AudioTopic));
-                    RunPercepSyncPipeline(sensorStreams, enablePreview);
+                    sensorStreams.AudioStream.PipeTo(
+                        percepStreamMQWriter.AddTopic<Audio>(AudioTopic)
+                    );
+                    RunPercepSyncPipeline(sensorStreams, config.EnablePreview);
                 }
             };
+
             rendezvousServer.Start();
-            if (localDevicesCapture is not null)
-            {
-                localDevicesCapture.Start();
-            }
-            RunCliLoop(enablePreview);
         }
 
         private static void RunPercepSyncPipeline(SensorStreams sensorStreams, bool enablePreview)
@@ -322,7 +470,8 @@
         }
 
         private static SensorStreams ConstructLocalSensorStreams(
-            Rendezvous.Process inputRendezvousProcess
+            Rendezvous.Process inputRendezvousProcess,
+            AzureSpeechSynthesizer? speechSynthesizer
         )
         {
             IProducer<RawPixelImage>? serializedWebcam = null;
@@ -380,7 +529,8 @@
         }
 
         private static SensorStreams ConstructHoloLensSensorStreams(
-            Rendezvous.Process inputRendezvousProcess
+            Rendezvous.Process inputRendezvousProcess,
+            AzureSpeechSynthesizer? speechSynthesizer
         )
         {
             if (rendezvousServer is null)
@@ -420,7 +570,7 @@
                     {
                         var sharedEncodedImageSourceEndpoint = tcpEndpoint.ToTcpSource<
                             Shared<EncodedImage>
-                        >(percepSyncPipeline, HoloLensSerializers.SharedEncodedImageFormat());
+                        >(percepSyncPipeline, Serializers.SharedEncodedImageFormat());
                         videoFrameStream = sharedEncodedImageSourceEndpoint
                             .Decode(new ImageFromNV12StreamDecoder(), DeliveryPolicy.LatestMessage)
                             .Select(
@@ -448,7 +598,7 @@
                         audioStream = tcpEndpoint
                             .ToTcpSource<AudioBuffer>(
                                 percepSyncPipeline,
-                                HoloLensSerializers.AudioBufferFormat()
+                                Serializers.AudioBufferFormat()
                             )
                             .Select((buffer) => new Audio(buffer.Data));
                     }
@@ -469,13 +619,28 @@
             var heartbeatTcpSource = new TcpWriter<(float, float)>(
                 percepSyncPipeline,
                 16000,
-                HoloLensSerializers.HeartbeatFormat()
+                Serializers.HeartbeatFormat()
             );
             serverHeartbeat.PipeTo(heartbeatTcpSource);
+            var endpoints = new List<Rendezvous.Endpoint>()
+            {
+                heartbeatTcpSource.ToRendezvousEndpoint("0.0.0.0", "ServerHeartbeat")
+            };
+            if (speechSynthesizer is not null)
+            {
+                var ttsSender = new TcpWriter<AudioBuffer>(
+                    percepSyncPipeline,
+                    14001,
+                    Serializers.AudioBufferFormat(),
+                    name: "TtsSender"
+                );
+                speechSynthesizer.PipeTo(ttsSender);
+                endpoints.Add(ttsSender.ToRendezvousEndpoint("0.0.0.0", "TTSAudioBuffer"));
+            }
             rendezvousServer.Rendezvous.TryAddProcess(
                 new Rendezvous.Process(
                     HoloLensCaptureServerProcessName, // HoloLensCaptureApp expects this. Should be changed later
-                    new[] { heartbeatTcpSource.ToRendezvousEndpoint("0.0.0.0", "ServerHeartbeat") }, // HoloLensCaptureApp expects this stream name. Should be changed later.
+                    endpoints,
                     HoloLensCaptureAppVersion
                 )
             );
@@ -521,7 +686,9 @@
                 if (rendezvousServer is not null)
                 {
                     rendezvousServer.Rendezvous.TryRemoveProcess(HoloLensCaptureServerProcessName);
-                    rendezvousServer.Rendezvous.TryRemoveProcess(HoloLensCaptureAppProcessName);
+                    rendezvousServer.Rendezvous.TryRemoveProcess(
+                        PercepSyncHoloLensCaptureProcessName
+                    );
                     rendezvousServer.Rendezvous.TryRemoveProcess(nameof(LocalDevicesCapture));
                 }
                 percepSyncPipeline?.Dispose();
