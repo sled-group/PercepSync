@@ -72,19 +72,19 @@
             var localCommand = new Command("local", description: "Use local devices");
             var localCameraDeviceIDOption = new Option<string>(
                 name: "--camera-device-id",
-                description: "Camera device ID",
+                description: "Camera device ID. Only used for Linux.",
                 getDefaultValue: () => LocalConfig.DefaultCameraDeviceId
             );
             localCommand.Add(localCameraDeviceIDOption);
             var localAudioInputDeviceNameOption = new Option<string>(
                 name: "--audio-input-device-name",
-                description: "Audio input device name",
+                description: "Audio input device name. Only used for Linux.",
                 getDefaultValue: () => LocalConfig.DefaultAudioInputDeviceName
             );
             localCommand.Add(localAudioInputDeviceNameOption);
             var localAudioOutputDeviceNameOption = new Option<string>(
                 name: "--audio-output-device-name",
-                description: "Audio output device name",
+                description: "Audio output device name. Only used for Linux.",
                 getDefaultValue: () => LocalConfig.DefaultAudioOutputDeviceName
             );
             localCommand.Add(localAudioOutputDeviceNameOption);
@@ -309,9 +309,13 @@
                             // Hook up speech synthesizer to the speaker
                             var audioPlayer = new AudioPlayer(
                                 percepSyncPipeline,
+#if NET7_0
                                 new AudioPlayerConfiguration(
                                     config.LocalConfig.AudioOutputDeviceName
                                 )
+#else
+                                new AudioPlayerConfiguration()
+#endif
                             );
                             speechSynthesizer.PipeTo(audioPlayer);
                         }

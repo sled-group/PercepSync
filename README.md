@@ -4,7 +4,7 @@
 
 ### Local Devices
 
-Connect a webcam and a microphone to your machine, then download the latest binary from the [Releases page](https://github.com/sled-group/PercepSync/releases) and run it.
+Connect a webcam and a microphone to your machine, then download the latest binary for your operating system from the [Releases page](https://github.com/sled-group/PercepSync/releases) and run it.
 
 ```bash
 # First make it executable
@@ -127,7 +127,7 @@ Here's the list of available topics and their data formats:
 }
 ```
 
-## Switching Local Devices
+## Switching Local Devices on Linux
 
 ### Video
 
@@ -145,18 +145,23 @@ $ ./PercepSync local --camera-device-id /dev/video1
 
 ### Audio
 
-By default, `PercepSync` uses `plughw:0,0`, but if you want to use another audio device, you can pass it in using the `--audio-device-name` option.
+By default, `PercepSync` uses `plughw:0,0` as both input and output devices, but if you want to use another audio device, you can pass it in using the `--audio-input-device-name` and `--audio-output-device-name` options.
 
 ```bash
 $ pacmd list-sources
 2 source(s) available.
-  * index: 1
+  * index: 0
     ...truncated
         alsa.device = "0"
         alsa.card = "2"
     ...truncated
+  * index: 1
+    ...truncated
+        alsa.device = "0"
+        alsa.card = "3"
+    ...truncated
 
-$ ./PercepSync local --audio-device-name plughw:2,0
+$ ./PercepSync local --audio-input-device-name plughw:2,0 --audio-output-device-name plughw:2,0
 ```
 
 ## Development
