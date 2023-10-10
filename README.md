@@ -53,6 +53,7 @@ $ python samples/simple_subscriber.py
 ```
 
 ### Text-to-speech
+
 You can enable text-to-speech by passing the `--enable-tts` option. `PercepSync` relies on [Microsoft Azure Speech Service](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/speech-sdk) to generate speech, so make sure you also pass in your Azure credentials via a config file. In the local mode, the speech will be played via the speaker, while in the HoloLens mode, the speech will be played on the HoloLens.
 
 **NOTE: Microsoft Azure Speech Service SDK relies on OpenSSL 1.x, which is no longer shipped with Ubuntu 22.04. As a result, you need to install OpenSSL 1.x from sources. Instructions can be found [here](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/quickstarts/setup-platform?tabs=linux%2Cubuntu%2Cdotnetcli%2Cdotnet%2Cjre%2Cmaven%2Cnodejs%2Cmac%2Cpypi&pivots=programming-language-csharp#platform-requirements). Please make sure you set the environment variable `SSL_CERT_DIR=/etc/ssl/certs`.**
