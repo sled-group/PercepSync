@@ -51,18 +51,4 @@ namespace Sled.PercepSync
             this.text = text;
         }
     }
-
-    /// <summary>
-    /// Represents text-to-speech audio data
-    /// </summary>
-    [MessagePackObject(keyAsPropertyName: true)]
-    public class TtsAudio
-    {
-        public Audio audio { get; set; }
-
-        public TtsAudio(Audio audio)
-        {
-            this.audio = audio;
-        }
-    }
 }

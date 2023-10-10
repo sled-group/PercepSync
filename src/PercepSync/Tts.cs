@@ -74,7 +74,7 @@ namespace Sled.PercepSync
         }
     }
 
-    public class AzureSpeechSynthesizer : IConsumerProducer<TtsRequest, TtsAudio>, IDisposable
+    public class AzureSpeechSynthesizer : IConsumerProducer<TtsRequest, AudioBuffer>, IDisposable
     {
         private readonly string subscriptionKey;
         private readonly string region;
@@ -106,7 +106,7 @@ namespace Sled.PercepSync
                 throw new Exception($"Error while initializing SpeechSynthesizer: {e.Message}");
             }
             In = pipeline.CreateReceiver<TtsRequest>(this, Receive, nameof(In));
-            Out = pipeline.CreateEmitter<TtsAudio>(this, nameof(Out));
+            Out = pipeline.CreateEmitter<AudioBuffer>(this, nameof(Out));
         }
 
         private async void Receive(TtsRequest req, Envelope envelope)
@@ -141,11 +141,11 @@ namespace Sled.PercepSync
                 memoryStream.ToArray(),
                 WaveFormat.Create16kHz1Channel16BitPcm()
             );
-            Out.Post(new TtsAudio(new Audio(audioBuffer.Data)), envelope.OriginatingTime);
+            Out.Post(audioBuffer, envelope.OriginatingTime);
         }
 
         public Receiver<TtsRequest> In { get; }
-        public Emitter<TtsAudio> Out { get; private set; }
+        public Emitter<AudioBuffer> Out { get; private set; }
 
         public void Dispose()
         {

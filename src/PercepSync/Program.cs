@@ -242,7 +242,7 @@
         private static void RunPercepSync(
             Config config,
             string targetProcessName,
-            Func<Rendezvous.Process, SensorStreams> ConstructSensorStreams,
+            Func<Rendezvous.Process, AzureSpeechSynthesizer?, SensorStreams> ConstructSensorStreams,
             string? targetProcessVersion = null
         )
         {
@@ -290,25 +290,20 @@
                     };
 
                     // Set up a rendezvous endpoint for text-to-speech
+                    AzureSpeechSynthesizer? speechSynthesizer = null;
                     if (config.EnableTts)
                     {
                         var ttsReceiver = new TtsRequestReceiver(
                             percepSyncPipeline,
                             config.TtsAddress
                         );
-                        var speechSynthesizer = new AzureSpeechSynthesizer(
+                        speechSynthesizer = new AzureSpeechSynthesizer(
                             percepSyncPipeline,
                             config.AzureSpeechConfig.SubscriptionKey,
                             config.AzureSpeechConfig.Region,
                             config.AzureSpeechConfig.SpeechSynthesisVoiceName
                         );
-                        var ttsSender = new TcpWriter<TtsAudio>(
-                            percepSyncPipeline,
-                            14001,
-                            MessagePackFormat.Instance,
-                            name: "TtsSender"
-                        );
-                        ttsReceiver.PipeTo(speechSynthesizer).PipeTo(ttsSender);
+                        ttsReceiver.PipeTo(speechSynthesizer);
                         if (config.LocalConfig is not null)
                         {
                             // Hook up speech synthesizer to the speaker
@@ -318,26 +313,8 @@
                                     config.LocalConfig.AudioOutputDeviceName
                                 )
                             );
-                            speechSynthesizer
-                                .Select(
-                                    (ttsAudio) =>
-                                        new AudioBuffer(
-                                            ttsAudio.audio.buffer,
-                                            WaveFormat.Create16kHz1Channel16BitPcm()
-                                        )
-                                )
-                                .PipeTo(audioPlayer);
+                            speechSynthesizer.PipeTo(audioPlayer);
                         }
-                        rendezvousServer.Rendezvous.TryAddProcess(
-                            new Rendezvous.Process(
-                                HoloLensCaptureServerProcessName,
-                                new[]
-                                {
-                                    ttsSender.ToRendezvousEndpoint("0.0.0.0", "TTSAudioBuffer")
-                                },
-                                HoloLensCaptureAppVersion
-                            )
-                        );
                     }
 
                     // Construct sensor streams
@@ -346,7 +323,7 @@
                         config.PercepStreamAddress,
                         MessagePackFormat.Instance
                     );
-                    var sensorStreams = ConstructSensorStreams(process);
+                    var sensorStreams = ConstructSensorStreams(process, speechSynthesizer);
                     sensorStreams.VideoFrameStream.PipeTo(
                         percepStreamMQWriter.AddTopic<RawPixelImage>(VideoFrameTopic)
                     );
@@ -493,7 +470,8 @@
         }
 
         private static SensorStreams ConstructLocalSensorStreams(
-            Rendezvous.Process inputRendezvousProcess
+            Rendezvous.Process inputRendezvousProcess,
+            AzureSpeechSynthesizer? speechSynthesizer
         )
         {
             IProducer<RawPixelImage>? serializedWebcam = null;
@@ -551,7 +529,8 @@
         }
 
         private static SensorStreams ConstructHoloLensSensorStreams(
-            Rendezvous.Process inputRendezvousProcess
+            Rendezvous.Process inputRendezvousProcess,
+            AzureSpeechSynthesizer? speechSynthesizer
         )
         {
             if (rendezvousServer is null)
@@ -643,10 +622,25 @@
                 Serializers.HeartbeatFormat()
             );
             serverHeartbeat.PipeTo(heartbeatTcpSource);
+            var endpoints = new List<Rendezvous.Endpoint>()
+            {
+                heartbeatTcpSource.ToRendezvousEndpoint("0.0.0.0", "ServerHeartbeat")
+            };
+            if (speechSynthesizer is not null)
+            {
+                var ttsSender = new TcpWriter<AudioBuffer>(
+                    percepSyncPipeline,
+                    14001,
+                    Serializers.AudioBufferFormat(),
+                    name: "TtsSender"
+                );
+                speechSynthesizer.PipeTo(ttsSender);
+                endpoints.Add(ttsSender.ToRendezvousEndpoint("0.0.0.0", "TTSAudioBuffer"));
+            }
             rendezvousServer.Rendezvous.TryAddProcess(
                 new Rendezvous.Process(
                     HoloLensCaptureServerProcessName, // HoloLensCaptureApp expects this. Should be changed later
-                    new[] { heartbeatTcpSource.ToRendezvousEndpoint("0.0.0.0", "ServerHeartbeat") }, // HoloLensCaptureApp expects this stream name. Should be changed later.
+                    endpoints,
                     HoloLensCaptureAppVersion
                 )
             );

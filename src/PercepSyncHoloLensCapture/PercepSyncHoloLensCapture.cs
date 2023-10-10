@@ -1127,6 +1127,46 @@ namespace PercepSyncHoloLensCapture
                                                 );
                                             }
 
+                                            foreach (var endpoint in process.Endpoints)
+                                            {
+                                                if (
+                                                    endpoint
+                                                    is Rendezvous.TcpSourceEndpoint tcpEndpoint
+                                                )
+                                                {
+                                                    if (
+                                                        tcpEndpoint.Stream.StreamName
+                                                        == "TTSAudioBuffer"
+                                                    )
+                                                    {
+                                                        var audioResampler = new AudioResampler(
+                                                            pipeline,
+                                                            new AudioResamplerConfiguration
+                                                            {
+                                                                OutputFormat =
+                                                                    WaveFormat.CreateIeeeFloat(
+                                                                        48000,
+                                                                        1
+                                                                    )
+                                                            }
+                                                        );
+                                                        var ttsAudio = new TcpSource<AudioBuffer>(
+                                                            pipeline,
+                                                            Config.PercepSync.Address,
+                                                            tcpEndpoint.Port,
+                                                            Serializers.AudioBufferFormat()
+                                                        );
+                                                        var spatialSound = new SpatialSound(
+                                                            pipeline,
+                                                            default
+                                                        );
+                                                        ttsAudio
+                                                            .PipeTo(audioResampler)
+                                                            .PipeTo(spatialSound);
+                                                    }
+                                                }
+                                            }
+
                                             captureServerProcess = process;
                                         }
                                     };
