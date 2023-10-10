@@ -28,6 +28,7 @@ namespace Sled.PercepSync
             rdzvClient = new RendezvousClient(serverAddress, port: serverPort);
 
             // Create the webcam component
+#if NET7_0
             var webcam = new MediaCapture(pipeline, 640, 480, cameraDeviceID, PixelFormatId.YUYV);
             var serializedWebcam = webcam.Select(
                 (image) =>
@@ -43,8 +44,25 @@ namespace Sled.PercepSync
                     );
                 }
             );
+#else
+            var webcam = new MediaCapture(pipeline, 640, 480);
+            var serializedWebcam = webcam.Select(
+                (image) =>
+                {
+                    var pixelData = new byte[image.Resource.Size];
+                    image.Resource.CopyTo(pixelData);
+                    return new RawPixelImage(
+                        pixelData,
+                        image.Resource.Width,
+                        image.Resource.Height,
+                        image.Resource.Stride
+                    );
+                }
+            );
+#endif
 
             // Create the audio capture component
+#if NET7_0
             var audio = new AudioCapture(
                 pipeline,
                 new AudioCaptureConfiguration
@@ -53,6 +71,9 @@ namespace Sled.PercepSync
                     Format = WaveFormat.Create16kHz1Channel16BitPcm()
                 }
             );
+#else
+            var audio = new AudioCapture(pipeline, WaveFormat.Create16kHz1Channel16BitPcm());
+#endif
             var serializedAudio = audio.Select((buffer) => new Audio(buffer.Data));
 
             // NOTE: We can't use RemoteExporter here b/c \psi uses named memory mapped files

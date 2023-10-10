@@ -2,10 +2,13 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net7.0</TargetFramework>
+    <TargetFrameworks>net472;net7.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PublishSingleFile>true</PublishSingleFile>
+    <!-- Refer to https://learn.microsoft.com/en-us/dotnet/core/rid-catalog#known-rids for more RIDs -->
+    <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
+    <SelfContained>true</SelfContained>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,9 +20,16 @@
     <PackageReference Include="GtkSharp" Version="3.24.24.95" />
     <PackageReference Include="Microsoft.CognitiveServices.Speech" Version="1.32.1" />
     <PackageReference Include="Microsoft.Psi.Audio" Version="0.18.72.1-beta" />
-    <PackageReference Include="Microsoft.Psi.Audio.Linux" Version="0.18.72.1-beta" />
+
+    <!-- Conditionally reference platform specific packages -->
+    <PackageReference Include="Microsoft.Psi.Audio.Linux" Version="0.18.72.1-beta" Condition="'$(TargetFramework)' == 'net7.0'" />
+    <PackageReference Include="Microsoft.Psi.Audio.Windows" Version="0.18.72.1-beta" Condition="'$(TargetFramework)' == 'net472'" />
+
     <PackageReference Include="Microsoft.Psi.Interop" Version="0.18.72.1-beta" />
-    <PackageReference Include="Microsoft.Psi.Media.Linux" Version="0.18.72.1-beta" />
+
+    <PackageReference Include="Microsoft.Psi.Media.Linux" Version="0.18.72.1-beta" Condition="'$(TargetFramework)' == 'net7.0'" />
+    <PackageReference Include="Microsoft.Psi.Media.Windows.x64" Version="0.18.72.1-beta" Condition="'$(TargetFramework)' == 'net472'" />
+
     <PackageReference Include="Microsoft.Psi.Runtime" Version="0.18.72.1-beta" />
     <PackageReference Include="NetMQ" Version="4.0.1.13" />
     <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />

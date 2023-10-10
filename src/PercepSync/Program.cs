@@ -309,9 +309,13 @@
                             // Hook up speech synthesizer to the speaker
                             var audioPlayer = new AudioPlayer(
                                 percepSyncPipeline,
+#if NET7_0
                                 new AudioPlayerConfiguration(
                                     config.LocalConfig.AudioOutputDeviceName
                                 )
+#else
+                                new AudioPlayerConfiguration()
+#endif
                             );
                             speechSynthesizer.PipeTo(audioPlayer);
                         }
