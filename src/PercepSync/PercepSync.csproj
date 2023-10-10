@@ -9,7 +9,7 @@
     <!-- Refer to https://learn.microsoft.com/en-us/dotnet/core/rid-catalog#known-rids for more RIDs -->
     <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
     <SelfContained>true</SelfContained>
-    <Platforms>AnyCPU;x64</Platforms>
+    <Platforms>x64</Platforms>
   </PropertyGroup>
 
   <ItemGroup>
