@@ -36,7 +36,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="HoloLens2ResearchMode.def" />
-    <None Include="$(MSBuildThisFileDirectory)\LICENSE.txt" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
