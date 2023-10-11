@@ -17,6 +17,12 @@
     <EmbeddedResource Include="VideoPlayerStyles.css" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(TargetFramework)' == 'net472'" >
+    <Content Include="$(NuGetPackageRoot)/microsoft.cognitiveservices.speech/1.32.1/runtimes/win-x64/native/Microsoft.CognitiveServices.Speech.core.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
   <ItemGroup>
     <!-- Costura.Fody is used to create a single executable for net472 -->
     <PackageReference Include="Costura.Fody" Version="5.7.0" Condition="'$(TargetFramework)' == 'net472'" >
