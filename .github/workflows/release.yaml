@@ -1,0 +1,142 @@
+on:
+  push:
+    tags:
+      - v[0-9]+.[0-9]+.[0-9]+
+jobs:
+  parse-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.parse-version.outputs.version }}
+    steps:
+      - name: Parse Version
+        id: parse-version
+        run: echo "version=${GITHUB_REF_NAME#v*}" >> "$GITHUB_OUTPUT"
+
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+      - uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: 7.0.x
+      - uses: pre-commit/action@v3.0.0
+
+  percepsync-publish-linux:
+    runs-on: ubuntu-latest
+    needs:
+      - parse-version
+      - pre-commit
+    outputs:
+      exe_name: ${{ steps.net-publish.outputs.exe_name }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: 7.0.x
+      - name: .NET Publish
+        id: net-publish
+        env:
+          VERSION: ${{ needs.parse-version.outputs.version }}
+        run: |
+          EXE_NAME=PercepSync-${VERSION}-linux-x64
+          echo "exe_name=$EXE_NAME" >> "$GITHUB_OUTPUT"
+          dotnet publish src/PercepSync/PercepSync.csproj --runtime linux-x64 --framework net7.0 --configuration Release -p:Version=$VERSION
+          cp src/PercepSync/bin/Release/net7.0/linux-x64/publish/PercepSync $EXE_NAME
+      - uses: actions/upload-artifact@v3
+        with:
+          name: percepsync-release-artifact-${{ needs.parse-version.outputs.version }}
+          path: ${{ steps.net-publish.outputs.exe_name }}
+
+  percepsync-publish-windows:
+    runs-on: windows-latest
+    needs:
+      - parse-version
+      - pre-commit
+    outputs:
+      exe_name: ${{ steps.net-publish.outputs.exe_name }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v3
+      - name: .NET Publish
+        id: net-publish
+        env:
+          VERSION: ${{ needs.parse-version.outputs.version }}
+        run: |
+          EXE_NAME=PercepSync-${VERSION}-win-x64.exe
+          echo "exe_name=$EXE_NAME" >> "$GITHUB_OUTPUT"
+          # NOTE: PublishSingleFile is not supported for net472, so we use Costra.Fody instead.
+          dotnet publish src/PercepSync/PercepSync.csproj --runtime win-x64 --framework net472 --configuration Release -p:Version=$VERSION -p:PublishSingleFile=false
+          cp src/PercepSync/bin/Release/net472/win-x64/publish/PercepSync.exe $EXE_NAME
+      - uses: actions/upload-artifact@v3
+        with:
+          name: percepsync-release-artifact-${{ needs.parse-version.outputs.version }}
+          path: ${{ steps.net-publish.outputs.exe_name }}
+
+  percepsync-hololens-capture-package-windows:
+    runs-on: windows-latest
+    needs:
+      - parse-version
+      - pre-commit
+    outputs:
+      archive_name: ${{ steps.create-archive.outputs.archive_name }}
+    env:
+      SigningCertificate: PercepSyncHoloLensCapture.pfx
+      Version: ${{ needs.parse-version.outputs.version }}.0
+      Project_Dir: src\PercepSyncHoloLensCapture
+    steps:
+      - uses: actions/checkout@v3
+      - uses: microsoft/setup-msbuild@v1.1
+      - name: Update manifest version
+        run: |
+          [xml]$manifest = get-content ".\$env:Project_Dir\Package.appxmanifest"
+          $manifest.Package.Identity.Version = "$env:Version"
+          $manifest.save(".\$env:Project_Dir\Package.appxmanifest")
+      - name: Decode the Pfx
+        run: |
+          $pfx_cert_byte = [System.Convert]::FromBase64String("${{ secrets.BASE64_ENCODED_PFX }}")
+          $currentDirectory = Get-Location
+          $certificatePath = Join-Path -Path $currentDirectory -ChildPath $env:Project_Dir -AdditionalChildPath $env:SigningCertificate
+          "certificatePath=$certificatePath" | Out-File -FilePath $env:GITHUB_ENV -Append
+          [IO.File]::WriteAllBytes("$certificatePath", $pfx_cert_byte)
+      - name: Restore NuGet Packages for HoloLens2ResearchMode
+        # Microsoft.Windows.CppWinRT is automatically installed with Visual Studio, but not on Github Actions, so we need to manually restore
+        run: nuget restore .\src\HoloLens2ResearchMode\HoloLens2ResearchMode.vcxproj -PackagesDirectory .\packages
+      - name: Build
+        id: build
+        run: msbuild .\$env:Project_Dir\PercepSyncHoloLensCapture.csproj /restore /p:Platform=ARM /p:Configuration=Release /p:BuildMode=SideLoadOnly /t:"Clean;Build" /p:PackageCertificateKeyFile=$env:SigningCertificate /p:PackageCertificatePassword=${{ secrets.PFX_PASSWORD}}
+      - name: Remove certificate
+        run: Remove-Item -path $env:certificatePath
+      - name: Create archive
+        id: create-archive
+        run: |
+          $archiveName = "PercepSyncHoloLensCapturePackage-$env:Version.zip"
+          "archive_name=$archiveName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Compress-Archive -Path .\$env:Project_Dir\AppPackages\* -DestinationPath $archiveName
+      - uses: actions/upload-artifact@v3
+        with:
+          name: percepsync-release-artifact-${{ needs.parse-version.outputs.version }}
+          path: ${{ steps.create-archive.outputs.archive_name }}
+
+  create-release:
+    runs-on: ubuntu-latest
+    needs:
+      - parse-version
+      - percepsync-publish-linux
+      - percepsync-publish-windows
+      - percepsync-hololens-capture-package-windows
+    steps:
+      - uses: actions/download-artifact@v3
+        with:
+          name: percepsync-release-artifact-${{ needs.parse-version.outputs.version }}
+      - uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ${{ needs.percepsync-publish-linux.outputs.exe_name }}
+            ${{ needs.percepsync-publish-windows.outputs.exe_name }}
+            ${{ needs.percepsync-hololens-capture-package-windows.outputs.archive_name }}
+          name: PercepSync ${{ needs.parse-version.outputs.version }}
+          fail_on_unmatched_files: true
+          generate_release_notes: true
