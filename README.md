@@ -29,7 +29,16 @@ $ python samples/simple_subscriber.py
 
 ### HoloLens
 
-First, place a file named `CaptureServerIP.txt` in the `Documents` folder of your HoloLens with the IP address of the server you're going to run `PercepSync` from. Then, download the latest binary from the [Releases page](https://github.com/sled-group/PercepSync/releases) and run it.
+First, install the latest version of `PercepSyncHoloLensCapture` from the [Releases page](https://github.com/sled-group/PercepSync/releases) and install it on your HoloLens 2 by following the steps below:
+
+1. Unzip the `PercepSyncHoloLensCapture` package.
+1. Go to the Windows Device Portal for your HoloLens 2, then Views > Apps.
+1. Under the Deploy apps section, ensure that you're on the Local Storage tab and choose the `.msixbundle` file from the unzipped package.
+1. Press the install button.
+
+Once installed, run `PercepSyncHoloLensCapture`. It automatically places a default config file called `PercepSyncHoloLensCaptureConfig.toml` in the `Documents` folder if it's not already there. The config file is pretty self-explanatory. You can set the address for the `PercepSync` server, as well as pick and choose which sensor to turn on. Note that not all sensors are currently supported by `PercepSync`. You can download `PercepSyncHoloLensCaptureConfig.toml` using the Windows Device Portal (System > Device Manager), modify it as desired and then reupload it.
+
+Once you're satisfied with your config, download the matching version of `PercepSync` from the [Releases page](https://github.com/sled-group/PercepSync/releases) and run it.
 
 ```bash
 # First make it executable
@@ -42,7 +51,7 @@ $ ./PercepSync hololens
 $ ./PercepSync --enable-preview hololens
 ```
 
-Now run the `HoloLensCaptureApp` on your HoloLens and start capturing. It'll automatically connect to `PercepSync`. You can then run the same Python script in another terminal to see what's being streamed.
+Now run `PercepSyncHoloLensCapture` on your HoloLens and start capturing. It'll automatically connect to `PercepSync`. You can then run the same Python script in another terminal to see what's being streamed.
 
 ```bash
 # Install the required packages
