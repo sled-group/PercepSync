@@ -32,9 +32,9 @@ $ python samples/simple_subscriber.py
 First, install the latest version of `PercepSyncHoloLensCapture` from the [Releases page](https://github.com/sled-group/PercepSync/releases) and install it on your HoloLens 2 by following the steps below:
 
 1. Unzip the `PercepSyncHoloLensCapture` package.
-1. Go to the Windows Device Portal for your HoloLens 2, then Views > Apps.
-1. Under the Deploy apps section, ensure that you're on the Local Storage tab and choose the `.msixbundle` file from the unzipped package.
-1. Press the install button.
+2. Go to the Windows Device Portal for your HoloLens 2, then Views > Apps.
+3. Under the Deploy apps section, ensure that you're on the Local Storage tab and choose the `.msixbundle` file from the unzipped package.
+4. Press the install button.
 
 Once installed, run `PercepSyncHoloLensCapture`. It automatically places a default config file called `PercepSyncHoloLensCaptureConfig.toml` in the `Documents` folder if it's not already there. The config file is pretty self-explanatory. You can set the address for the `PercepSync` server, as well as pick and choose which sensor to turn on. Note that not all sensors are currently supported by `PercepSync`. You can download `PercepSyncHoloLensCaptureConfig.toml` using the Windows Device Portal (System > Device Manager), modify it as desired and then reupload it.
 
@@ -195,4 +195,5 @@ $ dotnet tool restore
 We use [CSharpier](https://csharpier.com/) as our automatic code-formatter. It is automatically run against every commit as part of pre-commit hooks. However, it is highly recommended that you set up your text editor or IDE to run it automatically after each save. For VSCode, you can install the [official extension](https://marketplace.visualstudio.com/items?itemName=csharpier.csharpier-vscode).
 
 ## Release
+
 Simply create a tag of form `v\d+.\d+.\d+` and push it. Both Linux and Windows versions of `PercepSync` as well as `PercepSyncHoloLensCapture` will be automatically built, then added it to an auto-generated release page.
