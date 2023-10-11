@@ -193,3 +193,6 @@ $ dotnet tool restore
 #### Code Formatter
 
 We use [CSharpier](https://csharpier.com/) as our automatic code-formatter. It is automatically run against every commit as part of pre-commit hooks. However, it is highly recommended that you set up your text editor or IDE to run it automatically after each save. For VSCode, you can install the [official extension](https://marketplace.visualstudio.com/items?itemName=csharpier.csharpier-vscode).
+
+## Release
+Simply create a tag of form `v\d+.\d+.\d+` and push it. Both Linux and Windows versions of `PercepSync` as well as `PercepSyncHoloLensCapture` will be automatically built, then added it to an auto-generated release page.
