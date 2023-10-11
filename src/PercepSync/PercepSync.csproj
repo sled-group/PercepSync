@@ -18,26 +18,23 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Costura.Fody" Version="5.7.0">
+    <!-- Costura.Fody is used to create a single executable for net472 -->
+    <PackageReference Include="Costura.Fody" Version="5.7.0" Condition="'$(TargetFramework)' == 'net472'" >
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Fody" Version="6.8.0">
+    <PackageReference Include="Fody" Version="6.8.0" Condition="'$(TargetFramework)' == 'net472'" >
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+
     <PackageReference Include="GtkSharp" Version="3.24.24.95" />
     <PackageReference Include="Microsoft.CognitiveServices.Speech" Version="1.32.1" />
     <PackageReference Include="Microsoft.Psi.Audio" Version="0.18.72.1-beta" />
-
-    <!-- Conditionally reference platform specific packages -->
     <PackageReference Include="Microsoft.Psi.Audio.Linux" Version="0.18.72.1-beta" Condition="'$(TargetFramework)' == 'net7.0'" />
     <PackageReference Include="Microsoft.Psi.Audio.Windows" Version="0.18.72.1-beta" Condition="'$(TargetFramework)' == 'net472'" />
-
     <PackageReference Include="Microsoft.Psi.Interop" Version="0.18.72.1-beta" />
-
     <PackageReference Include="Microsoft.Psi.Media.Linux" Version="0.18.72.1-beta" Condition="'$(TargetFramework)' == 'net7.0'" />
     <PackageReference Include="Microsoft.Psi.Media.Windows.x64" Version="0.18.72.1-beta" Condition="'$(TargetFramework)' == 'net472'" />
-
     <PackageReference Include="Microsoft.Psi.Runtime" Version="0.18.72.1-beta" />
     <PackageReference Include="NetMQ" Version="4.0.1.13" />
     <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
