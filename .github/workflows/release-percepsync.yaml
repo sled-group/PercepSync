@@ -1,0 +1,95 @@
+on:
+  push:
+    tags:
+      - "release-percepsync-*"
+jobs:
+  parse-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.parse-version.outputs.version }}
+    steps:
+      - name: Parse Version
+        id: parse-version
+        run: echo "version=${GITHUB_REF_NAME#release-percepsync-*}" >> "$GITHUB_OUTPUT"
+
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+      - uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: 7.0.x
+      - uses: pre-commit/action@v3.0.0
+
+  publish-linux:
+    runs-on: ubuntu-latest
+    needs:
+      - parse-version
+      - pre-commit
+    outputs:
+      exe_name: ${{ steps.net-publish.outputs.exe_name }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: 7.0.x
+      - name: .NET Publish
+        id: net-publish
+        env:
+          VERSION: ${{ needs.parse-version.outputs.version }}
+        run: |
+          EXE_NAME=PercepSync-${VERSION}-linux-x64
+          echo "exe_name=$EXE_NAME" >> "$GITHUB_OUTPUT"
+          dotnet publish src/PercepSync/PercepSync.csproj --runtime linux-x64 --framework net7.0 --configuration Release -p:Version=$VERSION
+          cp src/PercepSync/bin/Release/net7.0/linux-x64/publish/PercepSync $EXE_NAME
+      - uses: actions/upload-artifact@v3
+        with:
+          name: release-artifact-${{ needs.parse-version.outputs.version }}
+          path: ${{ steps.net-publish.outputs.exe_name }}
+
+  publish-windows:
+    runs-on: windows-latest
+    needs:
+      - parse-version
+      - pre-commit
+    outputs:
+      exe_name: ${{ steps.net-publish.outputs.exe_name }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v3
+      - name: .NET Publish
+        id: net-publish
+        env:
+          VERSION: ${{ needs.parse-version.outputs.version }}
+        run: |
+          EXE_NAME=PercepSync-${VERSION}-win-x64.exe
+          echo "exe_name=$EXE_NAME" >> "$GITHUB_OUTPUT"
+          # NOTE: PublishSingleFile is not supported for net472, so we use Costra.Fody instead.
+          dotnet publish src/PercepSync/PercepSync.csproj --runtime win-x64 --framework net472 --configuration Release -p:Version=$VERSION -p:PublishSingleFile=false
+          cp src/PercepSync/bin/Release/net472/win-x64/publish/PercepSync.exe $EXE_NAME
+      - uses: actions/upload-artifact@v3
+        with:
+          name: release-artifact-${{ needs.parse-version.outputs.version }}
+          path: ${{ steps.net-publish.outputs.exe_name }}
+
+  create-release:
+    runs-on: ubuntu-latest
+    needs:
+      - parse-version
+      - publish-linux
+      - publish-windows
+    steps:
+      - uses: actions/download-artifact@v3
+        with:
+          name: release-artifact-${{ needs.parse-version.outputs.version }}
+      - uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ${{ needs.publish-linux.outputs.exe_name }}
+            ${{ needs.publish-windows.outputs.exe_name }}
+          name: PercepSync ${{ needs.parse-version.outputs.version }}
+          fail_on_unmatched_files: true
+          generate_release_notes: true
