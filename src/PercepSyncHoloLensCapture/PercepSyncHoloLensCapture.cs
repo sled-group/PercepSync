@@ -1,4 +1,4 @@
-namespace PercepSyncHoloLensCapture
+namespace Sled.PercepSyncHoloLensCapture
 {
     using System;
     using System.Collections.Generic;
