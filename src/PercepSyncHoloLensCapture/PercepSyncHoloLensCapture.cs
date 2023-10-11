@@ -1118,12 +1118,12 @@ namespace Sled.PercepSyncHoloLensCapture
 
                                     rendezvousClient.Rendezvous.ProcessAdded += (_, process) =>
                                     {
-                                        if (process.Name == "HoloLensCaptureServer")
+                                        if (process.Name == "PercepSync")
                                         {
                                             if (process.Version != Version)
                                             {
                                                 throw new Exception(
-                                                    $"Connection received from unexpected version of HoloLensCaptureServer (expected {Version}, actual {process.Version})."
+                                                    $"Connection received from unexpected API version of PercepSync (expected {Version}, actual {process.Version})."
                                                 );
                                             }
 
@@ -1173,7 +1173,7 @@ namespace Sled.PercepSyncHoloLensCapture
 
                                     rendezvousClient.Rendezvous.ProcessRemoved += (_, process) =>
                                     {
-                                        if (process.Name == "HoloLensCaptureServer")
+                                        if (process.Name == "PercepSync")
                                         {
                                             Trace.WriteLine($"Server shutdown");
                                             ResetState();

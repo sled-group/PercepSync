@@ -15,7 +15,7 @@
     /// <summary>
     /// PercepSync synchronizes streams of data from different perceptions and broadcast them.
     /// </summary>
-    public class Program
+    public class PercepSync
     {
         private static RendezvousServer? rendezvousServer;
         private static Pipeline? percepSyncPipeline;
@@ -24,9 +24,8 @@
 
         private const string VideoFrameTopic = "videoFrame";
         private const string AudioTopic = "audio";
-        private const string HoloLensCaptureServerProcessName = "HoloLensCaptureServer"; // HoloLensCaptureApp expects this. Should be changed later
         private const string PercepSyncHoloLensCaptureProcessName = "PercepSyncHoloLensCapture";
-        private const string HoloLensCaptureAppVersion = "v1";
+        private const string PercepSyncHoloLensCaptureAPIVersion = "v1";
         private const string HoloLensVideoStreamName = "VideoEncodedImageCameraView";
         private const string HoloLensAudioStreamName = "Audio";
 
@@ -225,7 +224,7 @@
                         config,
                         PercepSyncHoloLensCaptureProcessName,
                         ConstructHoloLensSensorStreams,
-                        targetProcessVersion: HoloLensCaptureAppVersion
+                        targetProcessVersion: PercepSyncHoloLensCaptureAPIVersion
                     );
                     RunCliLoop(config.EnablePreview);
                 },
@@ -643,9 +642,9 @@
             }
             rendezvousServer.Rendezvous.TryAddProcess(
                 new Rendezvous.Process(
-                    HoloLensCaptureServerProcessName, // HoloLensCaptureApp expects this. Should be changed later
+                    nameof(PercepSync),
                     endpoints,
-                    HoloLensCaptureAppVersion
+                    PercepSyncHoloLensCaptureAPIVersion
                 )
             );
 
@@ -689,7 +688,7 @@
             {
                 if (rendezvousServer is not null)
                 {
-                    rendezvousServer.Rendezvous.TryRemoveProcess(HoloLensCaptureServerProcessName);
+                    rendezvousServer.Rendezvous.TryRemoveProcess(nameof(PercepSync));
                     rendezvousServer.Rendezvous.TryRemoveProcess(
                         PercepSyncHoloLensCaptureProcessName
                     );
