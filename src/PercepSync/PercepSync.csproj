@@ -17,17 +17,25 @@
     <EmbeddedResource Include="VideoPlayerStyles.css" />
   </ItemGroup>
 
+  <!--
+    NuGet does not automatically copy over necessary native binaries (.dll files), so unfortunately they need to be copied over manually.
+    https://stackoverflow.com/questions/42278436/msbuild-macro-for-nuget-package-directory
+  -->
   <ItemGroup Condition="'$(TargetFramework)' == 'net472'" >
     <Content Include="$(NuGetPackageRoot)/microsoft.cognitiveservices.speech/1.32.1/runtimes/win-x64/native/Microsoft.CognitiveServices.Speech.core.dll">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net7.0'" >
-    <Content Include="$(NuGetPackageRoot)/microsoft.cognitiveservices.speech/1.32.1/runtimes/linux-x64/native/libMicrosoft.CognitiveServices.Speech.core.so">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
+  <!--
+    .NET does not embed Linux native libraries, e.g., .so (shard object) files, into the single executable as they are not .dll files.
+    We can get around this issue by setting IncludeNativeLibrariesForSelfExtract to true so that native libraries are automatically extracted
+    to a folder at start up.
+    https://learn.microsoft.com/en-us/dotnet/core/deploying/single-file/overview?tabs=cli#native-libraries
+  -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'linux-x64'">
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+  </PropertyGroup>
 
   <ItemGroup>
     <!-- Costura.Fody is used to create a single executable for net472 -->
