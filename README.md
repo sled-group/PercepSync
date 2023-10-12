@@ -91,8 +91,6 @@ $ python samples/simple_tts.py
 TTS Text: Hello, world!
 ```
 
-**NOTE: There is an issue where some TTS requests are not played through the audio output device on Linux. Typically, every other TTS requests are played. We don't know the root cause yet, but it will be fixed as soon as it is identified.**
-
 ## Perceptual Sensor Stream Data Format
 
 `PercepSync` uses [ZeroMQ](https://zeromq.org/) to publish data from different input devices. Data that can be synchronized will be synchronized and published to a single topic. The serialization format is [MessagePack](https://msgpack.org/).
