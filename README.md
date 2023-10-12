@@ -91,6 +91,16 @@ $ python samples/simple_tts.py
 TTS Text: Hello, world!
 ```
 
+## Configuration
+
+### `PercepSync`
+
+You can configure `PercepSync` via command line options as well as a configuration file. All options are available via the configuration file, but not via command line options. You can refer to the help message via the command line, or [Config.cs](src/PercepSync/Config.cs) for more details. Note that the Pascal Case property names, e.g., `EnablePreview`, are translated into snake case, e.g., `enable_preview` in the toml configuration file.
+
+### `PercepSyncHoloLensCapture`
+
+You can configure `PercepSyncHoloLensCapture` via a configuration file `PercepSyncHoloLensCaptureConfig.toml` placed into the `Documents` folder of the HoloLens 2. If it's already not there, `PercepSyncHoloLensCapture` will create a default one. In order to modify `PercepSyncHoloLensCaptureConfig.toml` download it using the Windows Device Portal (System > Device Manager), modify it as desired and then reupload it. You can refer to [Config.cs](src/PercepSyncHoloLensCapture/Config.cs) to see which configuration options are available.
+
 ## Perceptual Sensor Stream Data Format
 
 `PercepSync` uses [ZeroMQ](https://zeromq.org/) to publish data from different input devices. Data that can be synchronized will be synchronized and published to a single topic. The serialization format is [MessagePack](https://msgpack.org/).
