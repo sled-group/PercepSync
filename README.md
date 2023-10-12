@@ -175,20 +175,139 @@ $ ./PercepSync local --audio-input-device-name plughw:2,0 --audio-output-device-
 
 ## Development
 
+### `PercepSync`
+
+The main server application `PercepSync` is a cross-platform application that targets both Linux and Windows. On Linux, it runs on .NET 7.0 while on Windows it runs on .NET Framework 4.7.2. All of these versions of .NET may be confusing, and you can read more about the history of .NET [here](https://learn.microsoft.com/en-us/dotnet/core/introduction#net-history).
+
+If you're making changes only to `PercepSync`, it's often most convenient to develop on Linux. We recommend using Visual Studio Code to do so as it supports C# and .NET quite well. Open the root of the repository using Visual Studio Code, and place the following files under the `.vscode` folder to set up debugging with `PercepSync`.
+
+- `tasks.json`
+
+```json
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build-percepsync-net7.0",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "build",
+                "${workspaceFolder}/src/PercepSync/PercepSync.csproj",
+                "-f",
+                "net7.0",
+                "/property:GenerateFullPaths=true",
+                "/consoleloggerparameters:NoSummary;ForceNoAlign"
+            ],
+            "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "publish-percepsync-net7.0",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "publish",
+                "-f",
+                "net7.0",
+                "${workspaceFolder}/src/PercepSync/PercepSync.csproj",
+                "/property:GenerateFullPaths=true",
+                "/consoleloggerparameters:NoSummary;ForceNoAlign"
+            ],
+            "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "watch-percepsync-net7.0",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "watch",
+                "run",
+                "--project",
+                "${workspaceFolder}/src/PercepSync/PercepSync.csproj",
+                "${workspaceFolder}/PercepSync.sln",
+                "-f",
+                "net7.0"
+            ],
+            "problemMatcher": "$msCompile"
+        }
+    ]
+}
+
+```
+
+- `launch.json`
+
+```json
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug PercepSync",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build-percepsync-net7.0",
+            "program": "${workspaceFolder}/src/PercepSync/bin/Debug/net7.0/PercepSync.dll",
+            "args": [
+                // Your command line arguments go here...
+                // For example...
+                "--config-file",
+                "config.toml",
+                "--enable-tts",
+                "hololens"
+            ],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "SSL_CERT_DIR": "/etc/ssl/certs"
+            },
+            "console": "integratedTerminal",
+            "stopAtEntry": false,
+            "justMyCode": false
+        },
+        {
+            "name": ".NET Core Attach",
+            "type": "coreclr",
+            "request": "attach"
+        }
+    ]
+}
+```
+
+We currently don't have integration testing between `PercepSync` and `PercepSyncHoloLensCapture`, so if you're making a substantial change, you should manually test it by running an official release of `PercepSyncHoloLensCapture` on a HoloLens 2 (or even an emulator).
+
+There may be cases where you need to develop `PercepSync` on Windows, e.g., you need to make changes for both `PercepSync` and `PercepSyncHoloLensCapture` as described below. In this case, you can use Visual Studio to do so.
+
+### `PercepSyncHoloLensCapture`
+
+`PercepSyncHoloLensCapture` is a [UWP](https://learn.microsoft.com/en-us/windows/uwp/get-started/universal-application-platform-guide) application, and therefore can only be developed on a Windows machine using Visual Studio. Open the solution file `PercepSync.sln` at the root of the repository with Visual Studio to start developing. You can follow the instructions from the [`psi-samples`](https://github.com/microsoft/psi-samples/tree/main/Samples/HoloLensSample#building-and-deploying) repository to set things up so that you can load your code directly onto your HoloLens 2.
+
+### `PercepSync` and `PercepSyncHoloLensCapture` together
+
+Sometimes you may need to make changes on both applications. In this case, your best bet is to use Visual Studio on Windows. You can set it up so that both can be run at the same time by setting up [multiple startup projects](https://learn.microsoft.com/en-us/visualstudio/ide/how-to-set-multiple-startup-projects?view=vs-2022).
+
+### Code Quality and Pre-commit Hooks
+
+We use various tools to maintain code quality automatically. These tools are automatically run on every PR against the main branch and every PR committed to it. They are also run locally on every commit as pre-commit hooks. You can also set up some of the tools with your IDE so they are run every time you save a file, which makes the whole process a lot smoother.
+
+#### Pre-commit Hooks
+
 ```bash
 # Install pre-commit by following the instructions specified here: https://pre-commit.com/#install
 # For MacOS, we recommend using homebrew.
 # For Linux, use the 0-dependency zipapp. If you choose tor un `sudo pip install pre-commit` instead,
 # just be mindful that it may affect your virtualenvs.
 
-# Install pre-commit hooks
+# Install pre-commit hooks to the repo
 $ pre-commit install
+
+# or with 0-dependency zipapp (version 3.4.0)
+$ python path/to/pre-commit-3.4.0.pyz install
 
 # Install all the necessary local tools
 $ dotnet tool restore
 ```
-
-### Code Quality and Pre-commit Hooks
 
 #### Code Formatter
 
