@@ -23,6 +23,12 @@
     </Content>
   </ItemGroup>
 
+  <ItemGroup Condition="'$(TargetFramework)' == 'net7.0'" >
+    <Content Include="$(NuGetPackageRoot)/microsoft.cognitiveservices.speech/1.32.1/runtimes/linux-x64/native/libMicrosoft.CognitiveServices.Speech.core.so">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
   <ItemGroup>
     <!-- Costura.Fody is used to create a single executable for net472 -->
     <PackageReference Include="Costura.Fody" Version="5.7.0" Condition="'$(TargetFramework)' == 'net472'" >
