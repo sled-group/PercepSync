@@ -111,7 +111,7 @@ namespace Sled.PercepSync
 
         private async void Receive(TtsRequest req, Envelope envelope)
         {
-            var result = await speechSynthesizer.SpeakTextAsync(req.text);
+            var result = await speechSynthesizer.SpeakTextAsync(req.Text);
             if (result.Reason == ResultReason.Canceled)
             {
                 var cancellation = SpeechSynthesisCancellationDetails.FromResult(result);

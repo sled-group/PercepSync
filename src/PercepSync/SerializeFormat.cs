@@ -2,53 +2,91 @@ namespace Sled.PercepSync
 {
     using MessagePack;
 
+    [MessagePackObject]
+    public class VideoStreamData
+    {
+        [Key("frame")]
+        public RawPixelImage Frame { get; set; }
+
+        [Key("transribedText")]
+        public TranscribedText TranscribedText { get; set; }
+
+        public VideoStreamData(RawPixelImage frame, TranscribedText transcribedText)
+        {
+            Frame = frame;
+            TranscribedText = transcribedText;
+        }
+    }
+
     /// <summary>
     /// Represents a raw pixel image in BGRA-32.
     /// </summary>
-    [MessagePackObject(keyAsPropertyName: true)]
+    [MessagePackObject]
     public class RawPixelImage
     {
-        public byte[] pixelData { get; set; }
+        [Key("pixelData")]
+        public byte[] PixelData { get; set; }
 
-        public int width { get; set; }
+        [Key("width")]
+        public int Width { get; set; }
 
-        public int height { get; set; }
-        public int stride { get; set; }
+        [Key("height")]
+        public int Height { get; set; }
+
+        [Key("stride")]
+        public int Stride { get; set; }
 
         public RawPixelImage(byte[] pixelData, int width, int height, int stride)
         {
-            this.pixelData = pixelData;
-            this.width = width;
-            this.height = height;
-            this.stride = stride;
+            PixelData = pixelData;
+            Width = width;
+            Height = height;
+            Stride = stride;
+        }
+    }
+
+    /// <summary>
+    /// Represents a piece of transcribed text.
+    /// </summary>
+    [MessagePackObject]
+    public class TranscribedText
+    {
+        [Key("text")]
+        public string Text { get; set; }
+
+        public TranscribedText(string text)
+        {
+            Text = text;
         }
     }
 
     /// <summary>
     /// Represents an audio buffer whose encoding format is 16KHz, 1 channel, 16-bit PCM
     /// </summary>
-    [MessagePackObject(keyAsPropertyName: true)]
+    [MessagePackObject]
     public class Audio
     {
-        public byte[] buffer { get; set; }
+        [Key("buffer")]
+        public byte[] Buffer { get; set; }
 
         public Audio(byte[] buffer)
         {
-            this.buffer = buffer;
+            Buffer = buffer;
         }
     }
 
     /// <summary>
     /// Represents a text-to-speech request from a client
     /// </summary>
-    [MessagePackObject(keyAsPropertyName: true)]
+    [MessagePackObject]
     public class TtsRequest
     {
-        public string text { get; set; }
+        [Key("text")]
+        public string Text { get; set; }
 
         public TtsRequest(string text)
         {
-            this.text = text;
+            Text = text;
         }
     }
 }

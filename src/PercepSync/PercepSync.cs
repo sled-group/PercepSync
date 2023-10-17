@@ -355,7 +355,7 @@
                 sensorStreams.AudioStream
                     .Select(
                         (audio) =>
-                            new AudioBuffer(audio.buffer, WaveFormat.Create16kHz1Channel16BitPcm())
+                            new AudioBuffer(audio.Buffer, WaveFormat.Create16kHz1Channel16BitPcm())
                     )
                     .PipeTo(acousticFeatures);
                 sensorStreams.VideoFrameStream
