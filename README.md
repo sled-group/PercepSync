@@ -162,23 +162,25 @@ $ ./PercepSync local --camera-device-id /dev/video1
 
 ### Audio
 
-By default, `PercepSync` uses `plughw:0,0` as both input and output devices, but if you want to use another audio device, you can pass it in using the `--audio-input-device-name` and `--audio-output-device-name` options.
+By default, `PercepSync` uses `plughw:0,0` as both input and output devices, but if you want to use another audio device, you can pass it in using the `--audio-input-device-name` and `--audio-output-device-name` options. The first number refers to the "card" number, and the second number refers to the "device" number. You can find out all the output devices with `aplay -l`, and input devices with `arecord -l`.
 
 ```bash
-$ pacmd list-sources
-2 source(s) available.
-  * index: 0
-    ...truncated
-        alsa.device = "0"
-        alsa.card = "2"
-    ...truncated
-  * index: 1
-    ...truncated
-        alsa.device = "0"
-        alsa.card = "3"
-    ...truncated
+# For output devices.
+$ aplay -l
+**** List of PLAYBACK Hardware Devices ****
+card 0: Device [Device], device 3: HDMI 0 [HDMI 0]
+  Subdevices: 1/1
+  Subdevice #0: subdevice #0
+...
 
-$ ./PercepSync local --audio-input-device-name plughw:2,0 --audio-output-device-name plughw:2,0
+$ arecord -l
+**** List of CAPTURE Hardware Devices ****
+card 1: Device [Device], device 0: USB Audio [USB Audio]
+  Subdevices: 0/1
+  Subdevice #0: subdevice #0
+...
+
+$ ./PercepSync local --audio-output-device-name plughw:0,3 --audio-input-device-name plughw:1,0
 ```
 
 ## Development
