@@ -1158,7 +1158,8 @@ namespace Sled.PercepSyncHoloLensCapture
                                                         );
                                                         var spatialSound = new SpatialSound(
                                                             pipeline,
-                                                            default
+                                                            default,
+                                                            Config.Tts.MaxTtsDurationInSeconds
                                                         );
                                                         ttsAudio
                                                             .PipeTo(audioResampler)

@@ -288,6 +288,11 @@
                     };
 
                     // Set up a rendezvous endpoint for text-to-speech
+                    var percepDurationInSeconds = 1 / config.Fps;
+                    var audioBufferFrameSizeInBytes = (int)
+                        Math.Ceiling(
+                            Serializers.AssumedWaveFormat.AvgBytesPerSec * percepDurationInSeconds
+                        );
                     AzureSpeechSynthesizer? speechSynthesizer = null;
                     if (config.EnableTts)
                     {
@@ -299,7 +304,8 @@
                             percepSyncPipeline,
                             config.AzureSpeechConfig.SubscriptionKey,
                             config.AzureSpeechConfig.Region,
-                            config.AzureSpeechConfig.SpeechSynthesisVoiceName
+                            config.AzureSpeechConfig.SpeechSynthesisVoiceName,
+                            audioBufferFrameSizeInBytes
                         );
                         ttsReceiver.PipeTo(speechSynthesizer);
                         if (config.LocalConfig is not null)
@@ -321,17 +327,12 @@
 
                     // Construct sensor streams
                     var sensorStreams = ConstructSensorStreams(process, speechSynthesizer);
-                    var frameDurationInSeconds = 1 / config.Fps;
                     var videoFrameStream = sensorStreams.VideoFrameStream.Sample(
-                        TimeSpan.FromSeconds(frameDurationInSeconds)
+                        TimeSpan.FromSeconds(percepDurationInSeconds)
                     );
 
                     var audioBufferStream = sensorStreams.AudioBufferStream.Reframe(
-                        (int)
-                            Math.Ceiling(
-                                Serializers.AssumedWaveFormat.AvgBytesPerSec
-                                    * frameDurationInSeconds
-                            )
+                        audioBufferFrameSizeInBytes
                     );
                     var speechRecognizer = new ContinuousAzureSpeechRecognizer(
                         percepSyncPipeline,
@@ -343,13 +344,13 @@
                         .Join(
                             audioBufferStream,
                             Reproducible.Nearest<AudioBuffer>(
-                                TimeSpan.FromSeconds(frameDurationInSeconds)
+                                TimeSpan.FromSeconds(percepDurationInSeconds)
                             )
                         )
                         .Join(
                             speechRecognizer,
                             Reproducible.Nearest<string>(
-                                TimeSpan.FromSeconds(frameDurationInSeconds / 2)
+                                TimeSpan.FromSeconds(percepDurationInSeconds / 2)
                             )
                         )
                         .Select(
