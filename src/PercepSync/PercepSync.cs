@@ -349,7 +349,7 @@
                         .Join(
                             speechRecognizer,
                             Reproducible.Nearest<string>(
-                                TimeSpan.FromSeconds(frameDurationInSeconds)
+                                TimeSpan.FromSeconds(frameDurationInSeconds / 2)
                             )
                         )
                         .Select(
