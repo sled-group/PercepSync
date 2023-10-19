@@ -105,34 +105,26 @@ You can configure `PercepSyncHoloLensCapture` via a configuration file `PercepSy
 
 `PercepSync` uses [ZeroMQ](https://zeromq.org/) to publish data from different input devices. Data that can be synchronized will be synchronized and published to a single topic. The serialization format is [MessagePack](https://msgpack.org/).
 
-Here's the list of available topics and their data formats:
+Currently, one topic for synchronized perception data is available:
 
-- `videoFrame`
-
-```python
-{
-    "message": {
-        "pixelData": bytes, # raw pixels in RGB 24-bit for a single frame
-        "width": int,
-        "height": int,
-        "stride": int,
-    },
-    "originatingTime": int,
-}
-```
-
-- `audio`
+- `perception`
 
 ```python
 {
     "message": {
-        "buffer": bytes, # audio buffer in 16KHz, 1 channel, 16-bit PCM
+        "frame": {
+            "pixelData": bytes, # raw pixels in RGB 24-bit for a single frame
+            "width": int,
+            "height": int,
+            "stride": int,
+        },
+        "audio": {
+            "buffer": bytes, # audio buffer in 16KHz, 1 channel, 16-bit PCM
+        },
     },
     "originatingTime": int,
 }
 ```
-
-**NOTE: Synchronizing a single video frame and an audio buffer conceptually do not make sense since they operate on different frequencies. What we could do is to pair up a list of video frames and an audio buffer within the same timeframe. Let us know if you need this, and we'll implement it.**
 
 ## Text-to-speech Data Format
 

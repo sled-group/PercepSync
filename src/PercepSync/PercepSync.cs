@@ -22,8 +22,7 @@
         private static Preview? preview;
         private static readonly ManualResetEventSlim clientConnectedEvent = new();
 
-        private const string VideoFrameTopic = "videoFrame";
-        private const string AudioTopic = "audio";
+        private const string PerceptionTopic = "perception";
         private const string PercepSyncHoloLensCaptureProcessName = "PercepSyncHoloLensCapture";
         private const string PercepSyncHoloLensCaptureAPIVersion = "v1";
         private const string HoloLensVideoStreamName = "VideoEncodedImageCameraView";
@@ -321,34 +320,54 @@
                     }
 
                     // Construct sensor streams
-                    var percepStreamMQWriter = new NetMQWriter(
+                    var sensorStreams = ConstructSensorStreams(process, speechSynthesizer);
+                    var frameDurationInSeconds = 1 / config.Fps;
+                    var videoFrameStream = sensorStreams.VideoFrameStream.Sample(
+                        TimeSpan.FromSeconds(frameDurationInSeconds)
+                    );
+
+                    var audioBufferStream = sensorStreams.AudioBufferStream.Reframe(
+                        (int)
+                            Math.Ceiling(
+                                Serializers.AssumedWaveFormat.AvgBytesPerSec
+                                    * frameDurationInSeconds
+                            )
+                    );
+                    var percepStream = videoFrameStream
+                        .Join(
+                            audioBufferStream,
+                            Reproducible.Nearest<AudioBuffer>(
+                                TimeSpan.FromSeconds(frameDurationInSeconds)
+                            )
+                        )
+                        .Select(
+                            (tuple) =>
+                            {
+                                (var frame, var audioBuffer) = tuple;
+
+                                var pixelData = new byte[frame.Resource.Size];
+                                frame.Resource.CopyTo(pixelData);
+                                var rawPixelFrame = new RawPixelImage(
+                                    pixelData,
+                                    frame.Resource.Width,
+                                    frame.Resource.Height,
+                                    frame.Resource.Stride
+                                );
+
+                                return new Perception(
+                                    rawPixelFrame,
+                                    new Audio(audioBuffer.Data),
+                                    null
+                                );
+                            }
+                        );
+                    var percepStreamMQWriter = new NetMQWriter<Perception>(
                         percepSyncPipeline,
+                        PerceptionTopic,
                         config.PercepStreamAddress,
                         MessagePackFormat.Instance
                     );
-                    var sensorStreams = ConstructSensorStreams(process, speechSynthesizer);
-                    var serializedVideoFrameStream = sensorStreams.VideoFrameStream.Select(
-                        (image) =>
-                        {
-                            var pixelData = new byte[image.Resource.Size];
-                            image.Resource.CopyTo(pixelData);
-                            return new RawPixelImage(
-                                pixelData,
-                                image.Resource.Width,
-                                image.Resource.Height,
-                                image.Resource.Stride
-                            );
-                        }
-                    );
-                    serializedVideoFrameStream.PipeTo(
-                        percepStreamMQWriter.AddTopic<RawPixelImage>(VideoFrameTopic)
-                    );
-                    var serializedAudioBufferStream = sensorStreams.AudioBufferStream.Select(
-                        (buffer) => new Audio(buffer.Data)
-                    );
-                    serializedAudioBufferStream.PipeTo(
-                        percepStreamMQWriter.AddTopic<Audio>(AudioTopic)
-                    );
+                    percepStream.PipeTo(percepStreamMQWriter);
 
                     if (config.EnablePreview)
                     {
@@ -356,9 +375,9 @@
                         preview = new Preview(percepSyncPipeline);
                         var acousticFeatures = new AcousticFeaturesExtractor(percepSyncPipeline);
                         sensorStreams.AudioBufferStream.PipeTo(acousticFeatures);
-                        serializedVideoFrameStream
+                        percepStream
                             .Join(acousticFeatures.LogEnergy, RelativeTimeInterval.Past())
-                            .Select((data) => new DisplayInput(data.Item1, data.Item2))
+                            .Select((data) => new DisplayInput(data.Item1.Frame, data.Item2))
                             .PipeTo(preview);
                     }
 

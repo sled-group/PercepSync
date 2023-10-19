@@ -3,17 +3,21 @@ namespace Sled.PercepSync
     using MessagePack;
 
     [MessagePackObject]
-    public class VideoStreamData
+    public class Perception
     {
         [Key("frame")]
         public RawPixelImage Frame { get; set; }
 
-        [Key("transribedText")]
-        public TranscribedText TranscribedText { get; set; }
+        [Key("audio")]
+        public Audio Audio { get; set; }
 
-        public VideoStreamData(RawPixelImage frame, TranscribedText transcribedText)
+        [Key("transribedText")]
+        public TranscribedText? TranscribedText { get; set; }
+
+        public Perception(RawPixelImage frame, Audio audio, TranscribedText? transcribedText)
         {
             Frame = frame;
+            Audio = audio;
             TranscribedText = transcribedText;
         }
     }

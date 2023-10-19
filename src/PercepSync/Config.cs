@@ -7,12 +7,14 @@
         public static int DefaultRdzvServerPort = 13331;
         public static bool DefaultEnableTts = false;
         public static string DefaultTtsAddress = "tcp://*:12346";
+        public static double DefaultFps = 5;
 
         public string PercepStreamAddress { get; set; } = DefaultPercepStreamAddress;
         public bool EnablePreview { get; set; } = DefaultEnablePreview;
         public int RdzvServerPort { get; set; } = DefaultRdzvServerPort;
         public bool EnableTts { get; set; } = DefaultEnableTts;
         public string TtsAddress { get; set; } = DefaultTtsAddress;
+        public double Fps { get; set; } = DefaultFps;
         public AzureSpeechConfig AzureSpeechConfig { get; set; } = new();
         public LocalConfig? LocalConfig { get; set; } = null;
         public HoloLensConfig? HoloLensConfig { get; set; } = null;
