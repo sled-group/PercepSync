@@ -29,6 +29,11 @@
         /// Gray-scale camera config
         /// </summary>
         public GrayConfig Gray { get; set; } = new GrayConfig();
+
+        /// <summary>
+        /// Tts config
+        /// </summary>
+        public TtsConfig Tts { get; set; } = new TtsConfig();
     }
 
     /// <summary>
@@ -186,5 +191,17 @@
         /// Encoding method for gray-scale cameras.
         /// </summary>
         public string EncodeMethod { get; set; } = "jpeg";
+    }
+
+    /// <summary>
+    /// Configuration for text-to-speech
+    /// </summary>
+    public class TtsConfig
+    {
+        /// <summary>
+        /// Max duration for text-to-speech audio in seconds. The longer it is, the more memory it takes.
+        /// The buffer is circular, so if text-to-speech audio goes over this limit, the earlier speech will be overwritten.
+        /// </summary>
+        public double MaxTtsDurationInSeconds { get; set; } = 10;
     }
 }

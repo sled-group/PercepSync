@@ -58,6 +58,7 @@
     <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="SpatialSound.cs" />
     <Compile Include="Config.cs" />
     <Compile Include="PercepSyncHoloLensCapture.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
