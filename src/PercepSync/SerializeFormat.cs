@@ -11,10 +11,10 @@ namespace Sled.PercepSync
         [Key("audio")]
         public Audio Audio { get; set; }
 
-        [Key("transribedText")]
-        public TranscribedText? TranscribedText { get; set; }
+        [Key("transcribedText")]
+        public TranscribedText TranscribedText { get; set; }
 
-        public Perception(RawPixelImage frame, Audio audio, TranscribedText? transcribedText)
+        public Perception(RawPixelImage frame, Audio audio, TranscribedText transcribedText)
         {
             Frame = frame;
             Audio = audio;

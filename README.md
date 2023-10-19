@@ -121,6 +121,9 @@ Currently, one topic for synchronized perception data is available:
         "audio": {
             "buffer": bytes, # audio buffer in 16KHz, 1 channel, 16-bit PCM
         },
+        "transcribedText": {
+            "text": str,
+        },
     },
     "originatingTime": int,
 }

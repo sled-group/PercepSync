@@ -333,6 +333,12 @@
                                     * frameDurationInSeconds
                             )
                     );
+                    var speechRecognizer = new ContinuousAzureSpeechRecognizer(
+                        percepSyncPipeline,
+                        config.AzureSpeechConfig.SubscriptionKey,
+                        config.AzureSpeechConfig.Region
+                    );
+                    audioBufferStream.PipeTo(speechRecognizer);
                     var percepStream = videoFrameStream
                         .Join(
                             audioBufferStream,
@@ -340,10 +346,16 @@
                                 TimeSpan.FromSeconds(frameDurationInSeconds)
                             )
                         )
+                        .Join(
+                            speechRecognizer,
+                            Reproducible.Nearest<string>(
+                                TimeSpan.FromSeconds(frameDurationInSeconds)
+                            )
+                        )
                         .Select(
                             (tuple) =>
                             {
-                                (var frame, var audioBuffer) = tuple;
+                                (var frame, var audioBuffer, var transcription) = tuple;
 
                                 var pixelData = new byte[frame.Resource.Size];
                                 frame.Resource.CopyTo(pixelData);
@@ -357,7 +369,7 @@
                                 return new Perception(
                                     rawPixelFrame,
                                     new Audio(audioBuffer.Data),
-                                    null
+                                    new TranscribedText(transcription)
                                 );
                             }
                         );
