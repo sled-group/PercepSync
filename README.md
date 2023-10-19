@@ -105,34 +105,29 @@ You can configure `PercepSyncHoloLensCapture` via a configuration file `PercepSy
 
 `PercepSync` uses [ZeroMQ](https://zeromq.org/) to publish data from different input devices. Data that can be synchronized will be synchronized and published to a single topic. The serialization format is [MessagePack](https://msgpack.org/).
 
-Here's the list of available topics and their data formats:
+Currently, one topic for synchronized perception data is available:
 
-- `videoFrame`
-
-```python
-{
-    "message": {
-        "pixelData": bytes, # raw pixels in RGB 24-bit for a single frame
-        "width": int,
-        "height": int,
-        "stride": int,
-    },
-    "originatingTime": int,
-}
-```
-
-- `audio`
+- `perception`
 
 ```python
 {
     "message": {
-        "buffer": bytes, # audio buffer in 16KHz, 1 channel, 16-bit PCM
+        "frame": {
+            "pixelData": bytes, # raw pixels in RGB 24-bit for a single frame
+            "width": int,
+            "height": int,
+            "stride": int,
+        },
+        "audio": {
+            "buffer": bytes, # audio buffer in 16KHz, 1 channel, 16-bit PCM
+        },
+        "transcribedText": {
+            "text": str,
+        },
     },
     "originatingTime": int,
 }
 ```
-
-**NOTE: Synchronizing a single video frame and an audio buffer conceptually do not make sense since they operate on different frequencies. What we could do is to pair up a list of video frames and an audio buffer within the same timeframe. Let us know if you need this, and we'll implement it.**
 
 ## Text-to-speech Data Format
 
@@ -162,23 +157,25 @@ $ ./PercepSync local --camera-device-id /dev/video1
 
 ### Audio
 
-By default, `PercepSync` uses `plughw:0,0` as both input and output devices, but if you want to use another audio device, you can pass it in using the `--audio-input-device-name` and `--audio-output-device-name` options.
+By default, `PercepSync` uses `plughw:0,0` as both input and output devices, but if you want to use another audio device, you can pass it in using the `--audio-input-device-name` and `--audio-output-device-name` options. The first number refers to the "card" number, and the second number refers to the "device" number. You can find out all the output devices with `aplay -l`, and input devices with `arecord -l`.
 
 ```bash
-$ pacmd list-sources
-2 source(s) available.
-  * index: 0
-    ...truncated
-        alsa.device = "0"
-        alsa.card = "2"
-    ...truncated
-  * index: 1
-    ...truncated
-        alsa.device = "0"
-        alsa.card = "3"
-    ...truncated
+# For output devices.
+$ aplay -l
+**** List of PLAYBACK Hardware Devices ****
+card 0: Device [Device], device 3: HDMI 0 [HDMI 0]
+  Subdevices: 1/1
+  Subdevice #0: subdevice #0
+...
 
-$ ./PercepSync local --audio-input-device-name plughw:2,0 --audio-output-device-name plughw:2,0
+$ arecord -l
+**** List of CAPTURE Hardware Devices ****
+card 1: Device [Device], device 0: USB Audio [USB Audio]
+  Subdevices: 0/1
+  Subdevice #0: subdevice #0
+...
+
+$ ./PercepSync local --audio-output-device-name plughw:0,3 --audio-input-device-name plughw:1,0
 ```
 
 ## Development

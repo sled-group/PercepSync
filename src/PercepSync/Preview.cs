@@ -117,10 +117,10 @@ namespace Sled.PercepSync
         {
             // First convert RGB 24-bit to BGR 24-bit
             var image = new Image(
-                UnmanagedBuffer.CreateCopyFrom(rawImage.pixelData),
-                rawImage.width,
-                rawImage.height,
-                rawImage.stride,
+                UnmanagedBuffer.CreateCopyFrom(rawImage.PixelData),
+                rawImage.Width,
+                rawImage.Height,
+                rawImage.Stride,
                 PixelFormat.RGB_24bpp
             );
             var bgr24Image = image.Convert(PixelFormat.BGR_24bpp);

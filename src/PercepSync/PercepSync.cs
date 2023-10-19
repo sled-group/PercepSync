@@ -22,8 +22,7 @@
         private static Preview? preview;
         private static readonly ManualResetEventSlim clientConnectedEvent = new();
 
-        private const string VideoFrameTopic = "videoFrame";
-        private const string AudioTopic = "audio";
+        private const string PerceptionTopic = "perception";
         private const string PercepSyncHoloLensCaptureProcessName = "PercepSyncHoloLensCapture";
         private const string PercepSyncHoloLensCaptureAPIVersion = "v1";
         private const string HoloLensVideoStreamName = "VideoEncodedImageCameraView";
@@ -321,54 +320,88 @@
                     }
 
                     // Construct sensor streams
-                    var percepStreamMQWriter = new NetMQWriter(
+                    var sensorStreams = ConstructSensorStreams(process, speechSynthesizer);
+                    var frameDurationInSeconds = 1 / config.Fps;
+                    var videoFrameStream = sensorStreams.VideoFrameStream.Sample(
+                        TimeSpan.FromSeconds(frameDurationInSeconds)
+                    );
+
+                    var audioBufferStream = sensorStreams.AudioBufferStream.Reframe(
+                        (int)
+                            Math.Ceiling(
+                                Serializers.AssumedWaveFormat.AvgBytesPerSec
+                                    * frameDurationInSeconds
+                            )
+                    );
+                    var speechRecognizer = new ContinuousAzureSpeechRecognizer(
                         percepSyncPipeline,
+                        config.AzureSpeechConfig.SubscriptionKey,
+                        config.AzureSpeechConfig.Region
+                    );
+                    audioBufferStream.PipeTo(speechRecognizer);
+                    var percepStream = videoFrameStream
+                        .Join(
+                            audioBufferStream,
+                            Reproducible.Nearest<AudioBuffer>(
+                                TimeSpan.FromSeconds(frameDurationInSeconds)
+                            )
+                        )
+                        .Join(
+                            speechRecognizer,
+                            Reproducible.Nearest<string>(
+                                TimeSpan.FromSeconds(frameDurationInSeconds / 2)
+                            )
+                        )
+                        .Select(
+                            (tuple) =>
+                            {
+                                (var frame, var audioBuffer, var transcription) = tuple;
+
+                                var pixelData = new byte[frame.Resource.Size];
+                                frame.Resource.CopyTo(pixelData);
+                                var rawPixelFrame = new RawPixelImage(
+                                    pixelData,
+                                    frame.Resource.Width,
+                                    frame.Resource.Height,
+                                    frame.Resource.Stride
+                                );
+
+                                return new Perception(
+                                    rawPixelFrame,
+                                    new Audio(audioBuffer.Data),
+                                    new TranscribedText(transcription)
+                                );
+                            }
+                        );
+                    var percepStreamMQWriter = new NetMQWriter<Perception>(
+                        percepSyncPipeline,
+                        PerceptionTopic,
                         config.PercepStreamAddress,
                         MessagePackFormat.Instance
                     );
-                    var sensorStreams = ConstructSensorStreams(process, speechSynthesizer);
-                    sensorStreams.VideoFrameStream.PipeTo(
-                        percepStreamMQWriter.AddTopic<RawPixelImage>(VideoFrameTopic)
-                    );
-                    sensorStreams.AudioStream.PipeTo(
-                        percepStreamMQWriter.AddTopic<Audio>(AudioTopic)
-                    );
-                    RunPercepSyncPipeline(sensorStreams, config.EnablePreview);
+                    percepStream.PipeTo(percepStreamMQWriter);
+
+                    if (config.EnablePreview)
+                    {
+                        // Connect sensor streams to Preview
+                        preview = new Preview(percepSyncPipeline);
+                        var acousticFeatures = new AcousticFeaturesExtractor(percepSyncPipeline);
+                        sensorStreams.AudioBufferStream.PipeTo(acousticFeatures);
+                        percepStream
+                            .Join(acousticFeatures.LogEnergy, RelativeTimeInterval.Past())
+                            .Select((data) => new DisplayInput(data.Item1.Frame, data.Item2))
+                            .PipeTo(preview);
+                    }
+
+                    // Run the pipeline
+                    percepSyncPipeline.RunAsync();
+
+                    // Notify that the client has connected and the pipeline is running
+                    clientConnectedEvent.Set();
                 }
             };
 
             rendezvousServer.Start();
-        }
-
-        private static void RunPercepSyncPipeline(SensorStreams sensorStreams, bool enablePreview)
-        {
-            if (percepSyncPipeline is null)
-            {
-                throw new Exception("Pipeline has not been initialized.");
-            }
-
-            if (enablePreview)
-            {
-                // Connect sensor streams to Preview
-                preview = new Preview(percepSyncPipeline);
-                var acousticFeatures = new AcousticFeaturesExtractor(percepSyncPipeline);
-                sensorStreams.AudioStream
-                    .Select(
-                        (audio) =>
-                            new AudioBuffer(audio.buffer, WaveFormat.Create16kHz1Channel16BitPcm())
-                    )
-                    .PipeTo(acousticFeatures);
-                sensorStreams.VideoFrameStream
-                    .Join(acousticFeatures.LogEnergy, RelativeTimeInterval.Past())
-                    .Select((data) => new DisplayInput(data.Item1, data.Item2))
-                    .PipeTo(preview);
-            }
-
-            // Run the pipeline
-            percepSyncPipeline.RunAsync();
-
-            // Notify that the client has connected and the pipeline is running
-            clientConnectedEvent.Set();
         }
 
         private static void RunCliLoop(bool enablePreview)
@@ -477,8 +510,8 @@
             AzureSpeechSynthesizer? speechSynthesizer
         )
         {
-            IProducer<RawPixelImage>? serializedWebcam = null;
-            IProducer<Audio>? serializedAudio = null;
+            IProducer<Shared<Image>>? videoFrameStream = null;
+            IProducer<AudioBuffer>? audioBufferStream = null;
             foreach (var endpoint in inputRendezvousProcess.Endpoints)
             {
                 if (
@@ -486,49 +519,49 @@
                     && mqSourceEndpoint is not null
                 )
                 {
-                    foreach (var stream in mqSourceEndpoint.Streams)
+                    if (mqSourceEndpoint.Address == LocalDevicesCapture.WebcamAddress)
                     {
-                        // NOTE: MessagePackFormat is not generic and deserializes things as dynamic,
-                        // so we need to manually construct things.
-                        var deserializedSourceEndpoint = mqSourceEndpoint.ToNetMQSource<dynamic>(
-                            percepSyncPipeline,
-                            stream.StreamName,
-                            MessagePackFormat.Instance
-                        );
-                        if (stream.StreamName == LocalDevicesCapture.WebcamTopic)
+                        foreach (var stream in mqSourceEndpoint.Streams)
                         {
-                            serializedWebcam = deserializedSourceEndpoint.Select(
-                                (data) =>
-                                    new RawPixelImage(
-                                        data.pixelData,
-                                        data.width,
-                                        data.height,
-                                        data.stride
-                                    )
-                            );
+                            if (stream.StreamName == LocalDevicesCapture.WebcamTopic)
+                            {
+                                videoFrameStream = mqSourceEndpoint.ToNetMQSource<Shared<Image>>(
+                                    percepSyncPipeline,
+                                    stream.StreamName,
+                                    Serializers.SharedImageFormat()
+                                );
+                            }
                         }
-                        else if (stream.StreamName == LocalDevicesCapture.AudioTopic)
+                    }
+                    else if (mqSourceEndpoint.Address == LocalDevicesCapture.AudioAddress)
+                    {
+                        foreach (var stream in mqSourceEndpoint.Streams)
                         {
-                            serializedAudio = deserializedSourceEndpoint.Select(
-                                (data) => new Audio(data.buffer)
-                            );
+                            if (stream.StreamName == LocalDevicesCapture.AudioTopic)
+                            {
+                                audioBufferStream = mqSourceEndpoint.ToNetMQSource<AudioBuffer>(
+                                    percepSyncPipeline,
+                                    stream.StreamName,
+                                    Serializers.AudioBufferFormat()
+                                );
+                            }
                         }
                     }
                 }
             }
-            if (serializedWebcam is null)
+            if (videoFrameStream is null)
             {
                 throw new Exception(
-                    "Failed to construct the video frame sensor stream from local devices."
+                    "Failed to construct the video frame stream from local devices."
                 );
             }
-            if (serializedAudio is null)
+            if (audioBufferStream is null)
             {
                 throw new Exception(
-                    "Failed to construct the audio sensor stream from local devices."
+                    "Failed to construct the audio buffer stream from local devices."
                 );
             }
-            return new SensorStreams(serializedWebcam, serializedAudio);
+            return new SensorStreams(videoFrameStream, audioBufferStream);
         }
 
         private static SensorStreams ConstructHoloLensSensorStreams(
@@ -560,8 +593,8 @@
                 }
             }
 
-            IProducer<RawPixelImage>? videoFrameStream = null;
-            IProducer<Audio>? audioStream = null;
+            IProducer<Shared<Image>>? videoFrameStream = null;
+            IProducer<AudioBuffer>? audioBufferStream = null;
             foreach (var endpoint in inputRendezvousProcess.Endpoints)
             {
                 if (
@@ -576,34 +609,22 @@
                         >(percepSyncPipeline, Serializers.SharedEncodedImageFormat());
                         videoFrameStream = sharedEncodedImageSourceEndpoint
                             .Decode(new ImageFromNV12StreamDecoder(), DeliveryPolicy.LatestMessage)
+                            // NOTE: image.Resource.PixelFormat is PixelFormat.BGRA_32bpp, but
+                            // in actuality it is PixelFormat.RGBA_32bpp, which, for some reason,
+                            // does not exist. So, in order to convert image into RGB_24bpp,
+                            // we simply convert it to PixelFormat.BGR_24bpp so as not to swap
+                            // the color channels.
                             .Select(
                                 (image) =>
-                                {
-                                    // NOTE: image.Resource.PixelFormat is PixelFormat.BGRA_32bpp, but
-                                    // in actuality it is PixelFormat.RGBA_32bpp, which, for some reason,
-                                    // does not exist. So, in order to convert image into RGB_24bpp,
-                                    // we simply convert it to PixelFormat.BGR_24bpp so as not to swap
-                                    // the color channels.
-                                    var rgb24Image = image.Resource.Convert(PixelFormat.BGR_24bpp);
-                                    var pixelData = new byte[rgb24Image.Size];
-                                    rgb24Image.CopyTo(pixelData);
-                                    return new RawPixelImage(
-                                        pixelData,
-                                        rgb24Image.Width,
-                                        rgb24Image.Height,
-                                        rgb24Image.Stride
-                                    );
-                                }
+                                    Shared.Create(image.Resource.Convert(PixelFormat.BGR_24bpp))
                             );
                     }
                     else if (tcpEndpoint.Stream.StreamName == HoloLensAudioStreamName)
                     {
-                        audioStream = tcpEndpoint
-                            .ToTcpSource<AudioBuffer>(
-                                percepSyncPipeline,
-                                Serializers.AudioBufferFormat()
-                            )
-                            .Select((buffer) => new Audio(buffer.Data));
+                        audioBufferStream = tcpEndpoint.ToTcpSource<AudioBuffer>(
+                            percepSyncPipeline,
+                            Serializers.AudioBufferFormat()
+                        );
                     }
                 }
                 else if (endpoint is not Rendezvous.RemoteClockExporterEndpoint)
@@ -650,15 +671,13 @@
 
             if (videoFrameStream is null)
             {
-                throw new Exception(
-                    "Failed to construct the video frame sensor stream from HoloLens."
-                );
+                throw new Exception("Failed to construct the video frame stream from HoloLens.");
             }
-            if (audioStream is null)
+            if (audioBufferStream is null)
             {
-                throw new Exception("Failed to construct the audio sensor stream from HoloLens.");
+                throw new Exception("Failed to construct the audio buffer stream from HoloLens.");
             }
-            return new SensorStreams(videoFrameStream, audioStream);
+            return new SensorStreams(videoFrameStream, audioBufferStream);
         }
 
         private static void InitializeCssStyles()
@@ -706,16 +725,16 @@
 
         private class SensorStreams
         {
-            public IProducer<RawPixelImage> VideoFrameStream;
-            public IProducer<Audio> AudioStream;
+            public IProducer<Shared<Image>> VideoFrameStream;
+            public IProducer<AudioBuffer> AudioBufferStream;
 
             public SensorStreams(
-                IProducer<RawPixelImage> videoFrameStream,
-                IProducer<Audio> audioStream
+                IProducer<Shared<Image>> videoFrameStream,
+                IProducer<AudioBuffer> audioBufferStream
             )
             {
                 VideoFrameStream = videoFrameStream;
-                AudioStream = audioStream;
+                AudioBufferStream = audioBufferStream;
             }
         }
     }
