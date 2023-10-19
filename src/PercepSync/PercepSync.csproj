@@ -25,6 +25,9 @@
     <Content Include="$(NuGetPackageRoot)/microsoft.cognitiveservices.speech/1.32.1/runtimes/win-x64/native/Microsoft.CognitiveServices.Speech.core.dll">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+    <Content Include="$(NuGetPackageRoot)/microsoft.psi.media.windows.x64/0.18.72.1-beta/lib/net472/Microsoft.Psi.Media_Interop.Windows.x64.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <!--
