@@ -1,6 +1,8 @@
 # Based on:
 # https://www.dotnetapp.com/github-actions-for-uwp-apps-the-good-and-the-bad-and-the-ugly/
 # https://github.com/microsoft/github-actions-for-desktop-apps
+name: Release
+
 on:
   push:
     tags:

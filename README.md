@@ -105,34 +105,34 @@ You can configure `PercepSyncHoloLensCapture` via a configuration file `PercepSy
 
 `PercepSync` uses [ZeroMQ](https://zeromq.org/) to publish data from different input devices. Data that can be synchronized will be synchronized and published to a single topic. The serialization format is [MessagePack](https://msgpack.org/).
 
-Here's the list of available topics and their data formats:
+Currently, one topic for synchronized perception data is available:
 
-- `videoFrame`
+- `perception`
 
 ```python
+"""
+This packet of data is synchronized based on the FPS rate, which can be configured via the configuration file. For example, if the FPS rate is 5 (default), PercepSync will generate this packet roughly every 1/5 = 0.2 seconds, and the audio buffer will roughly be 0.2 seconds long.
+
+If speech is detected, a transcribed text will be included in the packet. Otherwise, it'll be an empty string. Note that the transcribed text will be included in the packet at the end of the speech, since we can't go back in time.
+"""
 {
     "message": {
-        "pixelData": bytes, # raw pixels in RGB 24-bit for a single frame
-        "width": int,
-        "height": int,
-        "stride": int,
+        "frame": {
+            "pixelData": bytes, # raw pixels in RGB 24-bit for a single frame
+            "width": int,
+            "height": int,
+            "stride": int,
+        },
+        "audio": {
+            "buffer": bytes, # audio buffer in 16KHz, 1 channel, 16-bit PCM
+        },
+        "transcribedText": {
+            "text": str, # if no speech is detected, empty string.
+        },
     },
     "originatingTime": int,
 }
 ```
-
-- `audio`
-
-```python
-{
-    "message": {
-        "buffer": bytes, # audio buffer in 16KHz, 1 channel, 16-bit PCM
-    },
-    "originatingTime": int,
-}
-```
-
-**NOTE: Synchronizing a single video frame and an audio buffer conceptually do not make sense since they operate on different frequencies. What we could do is to pair up a list of video frames and an audio buffer within the same timeframe. Let us know if you need this, and we'll implement it.**
 
 ## Text-to-speech Data Format
 
@@ -162,23 +162,25 @@ $ ./PercepSync local --camera-device-id /dev/video1
 
 ### Audio
 
-By default, `PercepSync` uses `plughw:0,0` as both input and output devices, but if you want to use another audio device, you can pass it in using the `--audio-input-device-name` and `--audio-output-device-name` options.
+By default, `PercepSync` uses `plughw:0,0` as both input and output devices, but if you want to use another audio device, you can pass it in using the `--audio-input-device-name` and `--audio-output-device-name` options. The first number refers to the "card" number, and the second number refers to the "device" number. You can find out all the output devices with `aplay -l`, and input devices with `arecord -l`.
 
 ```bash
-$ pacmd list-sources
-2 source(s) available.
-  * index: 0
-    ...truncated
-        alsa.device = "0"
-        alsa.card = "2"
-    ...truncated
-  * index: 1
-    ...truncated
-        alsa.device = "0"
-        alsa.card = "3"
-    ...truncated
+# For output devices.
+$ aplay -l
+**** List of PLAYBACK Hardware Devices ****
+card 0: Device [Device], device 3: HDMI 0 [HDMI 0]
+  Subdevices: 1/1
+  Subdevice #0: subdevice #0
+...
 
-$ ./PercepSync local --audio-input-device-name plughw:2,0 --audio-output-device-name plughw:2,0
+$ arecord -l
+**** List of CAPTURE Hardware Devices ****
+card 1: Device [Device], device 0: USB Audio [USB Audio]
+  Subdevices: 0/1
+  Subdevice #0: subdevice #0
+...
+
+$ ./PercepSync local --audio-output-device-name plughw:0,3 --audio-input-device-name plughw:1,0
 ```
 
 ## Development
@@ -193,93 +195,92 @@ If you're making changes only to `PercepSync`, it's often most convenient to dev
 
 ```json
 {
-    "version": "2.0.0",
-    "tasks": [
-        {
-            "label": "build-percepsync-net7.0",
-            "command": "dotnet",
-            "type": "process",
-            "args": [
-                "build",
-                "${workspaceFolder}/src/PercepSync/PercepSync.csproj",
-                "-f",
-                "net7.0",
-                "/property:GenerateFullPaths=true",
-                "/consoleloggerparameters:NoSummary;ForceNoAlign"
-            ],
-            "problemMatcher": "$msCompile"
-        },
-        {
-            "label": "publish-percepsync-net7.0",
-            "command": "dotnet",
-            "type": "process",
-            "args": [
-                "publish",
-                "-f",
-                "net7.0",
-                "${workspaceFolder}/src/PercepSync/PercepSync.csproj",
-                "/property:GenerateFullPaths=true",
-                "/consoleloggerparameters:NoSummary;ForceNoAlign"
-            ],
-            "problemMatcher": "$msCompile"
-        },
-        {
-            "label": "watch-percepsync-net7.0",
-            "command": "dotnet",
-            "type": "process",
-            "args": [
-                "watch",
-                "run",
-                "--project",
-                "${workspaceFolder}/src/PercepSync/PercepSync.csproj",
-                "${workspaceFolder}/PercepSync.sln",
-                "-f",
-                "net7.0"
-            ],
-            "problemMatcher": "$msCompile"
-        }
-    ]
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build-percepsync-net7.0",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/src/PercepSync/PercepSync.csproj",
+        "-f",
+        "net7.0",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary;ForceNoAlign"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "publish-percepsync-net7.0",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "publish",
+        "-f",
+        "net7.0",
+        "${workspaceFolder}/src/PercepSync/PercepSync.csproj",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary;ForceNoAlign"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "watch-percepsync-net7.0",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "watch",
+        "run",
+        "--project",
+        "${workspaceFolder}/src/PercepSync/PercepSync.csproj",
+        "${workspaceFolder}/PercepSync.sln",
+        "-f",
+        "net7.0"
+      ],
+      "problemMatcher": "$msCompile"
+    }
+  ]
 }
-
 ```
 
 - `launch.json`
 
 ```json
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "name": "Debug PercepSync",
-            "type": "coreclr",
-            "request": "launch",
-            "preLaunchTask": "build-percepsync-net7.0",
-            "program": "${workspaceFolder}/src/PercepSync/bin/Debug/net7.0/PercepSync.dll",
-            "args": [
-                // Your command line arguments go here...
-                // For example...
-                "--config-file",
-                "config.toml",
-                "--enable-tts",
-                "hololens"
-            ],
-            "cwd": "${workspaceFolder}",
-            "env": {
-                "SSL_CERT_DIR": "/etc/ssl/certs"
-            },
-            "console": "integratedTerminal",
-            "stopAtEntry": false,
-            "justMyCode": false
-        },
-        {
-            "name": ".NET Core Attach",
-            "type": "coreclr",
-            "request": "attach"
-        }
-    ]
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug PercepSync",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-percepsync-net7.0",
+      "program": "${workspaceFolder}/src/PercepSync/bin/Debug/net7.0/PercepSync.dll",
+      "args": [
+        // Your command line arguments go here...
+        // For example...
+        "--config-file",
+        "config.toml",
+        "--enable-tts",
+        "hololens"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "SSL_CERT_DIR": "/etc/ssl/certs"
+      },
+      "console": "integratedTerminal",
+      "stopAtEntry": false,
+      "justMyCode": false
+    },
+    {
+      "name": ".NET Core Attach",
+      "type": "coreclr",
+      "request": "attach"
+    }
+  ]
 }
 ```
 

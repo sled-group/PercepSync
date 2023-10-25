@@ -80,12 +80,14 @@ namespace Sled.PercepSync
         private readonly string region;
         private readonly string voiceName;
         private SpeechSynthesizer speechSynthesizer;
+        private Reframe reframer;
 
         public AzureSpeechSynthesizer(
             Pipeline pipeline,
             string subscriptionKey,
             string region,
-            string voiceName
+            string voiceName,
+            int audioBufferFrameSizeInBytes
         )
         {
             this.subscriptionKey = subscriptionKey;
@@ -106,12 +108,15 @@ namespace Sled.PercepSync
                 throw new Exception($"Error while initializing SpeechSynthesizer: {e.Message}");
             }
             In = pipeline.CreateReceiver<TtsRequest>(this, Receive, nameof(In));
-            Out = pipeline.CreateEmitter<AudioBuffer>(this, nameof(Out));
+            audioOut = pipeline.CreateEmitter<AudioBuffer>(this, nameof(audioOut));
+            reframer = new Reframe(pipeline, audioBufferFrameSizeInBytes);
+            audioOut.PipeTo(reframer);
+            Out = reframer.Out;
         }
 
         private async void Receive(TtsRequest req, Envelope envelope)
         {
-            var result = await speechSynthesizer.SpeakTextAsync(req.text);
+            var result = await speechSynthesizer.SpeakTextAsync(req.Text);
             if (result.Reason == ResultReason.Canceled)
             {
                 var cancellation = SpeechSynthesisCancellationDetails.FromResult(result);
@@ -141,11 +146,12 @@ namespace Sled.PercepSync
                 memoryStream.ToArray(),
                 WaveFormat.Create16kHz1Channel16BitPcm()
             );
-            Out.Post(audioBuffer, envelope.OriginatingTime);
+            audioOut.Post(audioBuffer, envelope.OriginatingTime);
         }
 
         public Receiver<TtsRequest> In { get; }
         public Emitter<AudioBuffer> Out { get; private set; }
+        private Emitter<AudioBuffer> audioOut { get; set; }
 
         public void Dispose()
         {
