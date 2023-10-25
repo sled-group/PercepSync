@@ -1329,6 +1329,7 @@ namespace Sled.PercepSyncHoloLensCapture
                 var config = await folder.GetFileAsync(configFile);
                 var configStr = await FileIO.ReadTextAsync(config);
                 Config = Toml.ToModel<Config>(configStr);
+                Config.PercepSync.Address = Config.PercepSync.Address.Trim();
             }
             catch (FileNotFoundException)
             {
