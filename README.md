@@ -1,5 +1,7 @@
 # PercepSync
 
+PercepSync provides a single, unified interface for synchronized perceptual data streamed from heterogeneous devices. Develop your embodied AI agent using your local webcam, and deploy the same agent with the HoloLens without any code changes!
+
 ## Quick Start
 
 ### Local Devices
