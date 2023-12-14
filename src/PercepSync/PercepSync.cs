@@ -315,13 +315,22 @@
                             percepSyncPipeline,
                             config.TtsAddress
                         );
-                        speechSynthesizer = new AzureSpeechSynthesizer(
-                            percepSyncPipeline,
-                            config.AzureSpeechConfig.SubscriptionKey,
-                            config.AzureSpeechConfig.Region,
-                            config.AzureSpeechConfig.SpeechSynthesisVoiceName,
-                            audioBufferFrameSizeInBytes
-                        );
+                        try
+                        {
+                            speechSynthesizer = new AzureSpeechSynthesizer(
+                                percepSyncPipeline,
+                                config.AzureSpeechConfig.SubscriptionKey,
+                                config.AzureSpeechConfig.Region,
+                                config.AzureSpeechConfig.SpeechSynthesisVoiceName,
+                                audioBufferFrameSizeInBytes
+                            );
+                        }
+                        catch (Exception ex)
+                        {
+                            throw new Exception(
+                                $"Error while setting up Text-to-Speech:\n\n{ex}.\n\nPlease ensure that your Azure credentials are correct."
+                            );
+                        }
                         ttsReceiver.PipeTo(speechSynthesizer);
                         if (config.LocalConfig is not null)
                         {
@@ -379,11 +388,21 @@
                     }
                     if (config.EnableStt)
                     {
-                        var speechRecognizer = new ContinuousAzureSpeechRecognizer(
-                            percepSyncPipeline,
-                            config.AzureSpeechConfig.SubscriptionKey,
-                            config.AzureSpeechConfig.Region
-                        );
+                        ContinuousAzureSpeechRecognizer speechRecognizer;
+                        try
+                        {
+                            speechRecognizer = new ContinuousAzureSpeechRecognizer(
+                                percepSyncPipeline,
+                                config.AzureSpeechConfig.SubscriptionKey,
+                                config.AzureSpeechConfig.Region
+                            );
+                        }
+                        catch (Exception ex)
+                        {
+                            throw new Exception(
+                                $"Error while setting up Speech-to-Text:\n\n{ex}.\n\nPlease ensure that your Azure credentials are correct."
+                            );
+                        }
                         audioBufferStream.PipeTo(speechRecognizer);
                         percepStream = videoAudioStream
                             .Join(
