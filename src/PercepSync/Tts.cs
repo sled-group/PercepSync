@@ -94,19 +94,12 @@ namespace Sled.PercepSync
             this.region = region;
             this.voiceName = voiceName;
 
-            try
-            {
-                var speechConfig = SpeechConfig.FromSubscription(this.subscriptionKey, this.region);
-                speechConfig.SpeechSynthesisVoiceName = this.voiceName;
-                speechConfig.SetSpeechSynthesisOutputFormat(
-                    SpeechSynthesisOutputFormat.Raw16Khz16BitMonoPcm
-                );
-                speechSynthesizer = new SpeechSynthesizer(speechConfig, null);
-            }
-            catch (Exception e)
-            {
-                throw new Exception($"Error while initializing SpeechSynthesizer: {e.Message}");
-            }
+            var speechConfig = SpeechConfig.FromSubscription(this.subscriptionKey, this.region);
+            speechConfig.SpeechSynthesisVoiceName = this.voiceName;
+            speechConfig.SetSpeechSynthesisOutputFormat(
+                SpeechSynthesisOutputFormat.Raw16Khz16BitMonoPcm
+            );
+            speechSynthesizer = new SpeechSynthesizer(speechConfig, null);
             In = pipeline.CreateReceiver<TtsRequest>(this, Receive, nameof(In));
             audioOut = pipeline.CreateEmitter<AudioBuffer>(this, nameof(audioOut));
             reframer = new Reframe(pipeline, audioBufferFrameSizeInBytes);

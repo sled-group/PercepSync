@@ -7,6 +7,7 @@
         public static int DefaultRdzvServerPort = 13331;
         public static bool DefaultEnableTts = false;
         public static string DefaultTtsAddress = "tcp://*:12346";
+        public static bool DefaultEnableStt = false;
         public static double DefaultFps = 5;
 
         public string PercepStreamAddress { get; set; } = DefaultPercepStreamAddress;
@@ -14,6 +15,7 @@
         public int RdzvServerPort { get; set; } = DefaultRdzvServerPort;
         public bool EnableTts { get; set; } = DefaultEnableTts;
         public string TtsAddress { get; set; } = DefaultTtsAddress;
+        public bool EnableStt { get; set; } = DefaultEnableStt;
         public double Fps { get; set; } = DefaultFps;
         public AzureSpeechConfig AzureSpeechConfig { get; set; } = new();
         public LocalConfig? LocalConfig { get; set; } = null;

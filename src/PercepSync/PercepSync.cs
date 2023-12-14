@@ -66,6 +66,12 @@
                 getDefaultValue: () => Config.DefaultTtsAddress
             );
             rootCommand.AddOption(ttsAddressOption);
+            var enableSttOption = new Option<bool>(
+                name: "--enable-stt",
+                description: "Whether to enable speech-to-text or not. Make sure to set Azure creds if enabled.",
+                getDefaultValue: () => Config.DefaultEnableStt
+            );
+            rootCommand.AddOption(enableSttOption);
 
             var localCommand = new Command("local", description: "Use local devices");
             var localCameraDeviceIDOption = new Option<string>(
@@ -94,7 +100,8 @@
                 bool enablePreview,
                 int rdzvServerPort,
                 bool enableTts,
-                string? ttsAddress
+                string? ttsAddress,
+                bool enableStt
             )
             {
                 Config config;
@@ -132,6 +139,10 @@
                 {
                     config.TtsAddress = ttsAddress;
                 }
+                if (enableStt != Config.DefaultEnableStt)
+                {
+                    config.EnableStt = enableStt;
+                }
                 return config;
             }
 
@@ -144,7 +155,8 @@
                         context.ParseResult.GetValueForOption(enablePreviewOption),
                         context.ParseResult.GetValueForOption(rdzvServerPortOption),
                         context.ParseResult.GetValueForOption(enableTtsOption),
-                        context.ParseResult.GetValueForOption(ttsAddressOption)
+                        context.ParseResult.GetValueForOption(ttsAddressOption),
+                        context.ParseResult.GetValueForOption(enableSttOption)
                     );
                     var cameraDeviceID = context.ParseResult.GetValueForOption(
                         localCameraDeviceIDOption
@@ -204,7 +216,8 @@
                     enablePreview,
                     rdzvServerPort,
                     enableTts,
-                    ttsAddress
+                    ttsAddress,
+                    enableStt
                 ) =>
                 {
                     var config = CreateConfig(
@@ -213,7 +226,8 @@
                         enablePreview,
                         rdzvServerPort,
                         enableTts,
-                        ttsAddress
+                        ttsAddress,
+                        enableStt
                     );
                     if (config.HoloLensConfig is null)
                     {
@@ -232,7 +246,8 @@
                 enablePreviewOption,
                 rdzvServerPortOption,
                 enableTtsOption,
-                ttsAddressOption
+                ttsAddressOption,
+                enableSttOption
             );
             rootCommand.Invoke(args);
         }
@@ -300,13 +315,22 @@
                             percepSyncPipeline,
                             config.TtsAddress
                         );
-                        speechSynthesizer = new AzureSpeechSynthesizer(
-                            percepSyncPipeline,
-                            config.AzureSpeechConfig.SubscriptionKey,
-                            config.AzureSpeechConfig.Region,
-                            config.AzureSpeechConfig.SpeechSynthesisVoiceName,
-                            audioBufferFrameSizeInBytes
-                        );
+                        try
+                        {
+                            speechSynthesizer = new AzureSpeechSynthesizer(
+                                percepSyncPipeline,
+                                config.AzureSpeechConfig.SubscriptionKey,
+                                config.AzureSpeechConfig.Region,
+                                config.AzureSpeechConfig.SpeechSynthesisVoiceName,
+                                audioBufferFrameSizeInBytes
+                            );
+                        }
+                        catch (Exception ex)
+                        {
+                            throw new Exception(
+                                $"Error while setting up Text-to-Speech:\n\n{ex}.\n\nPlease ensure that your Azure credentials are correct."
+                            );
+                        }
                         ttsReceiver.PipeTo(speechSynthesizer);
                         if (config.LocalConfig is not null)
                         {
@@ -334,46 +358,74 @@
                     var audioBufferStream = sensorStreams.AudioBufferStream.Reframe(
                         audioBufferFrameSizeInBytes
                     );
-                    var speechRecognizer = new ContinuousAzureSpeechRecognizer(
-                        percepSyncPipeline,
-                        config.AzureSpeechConfig.SubscriptionKey,
-                        config.AzureSpeechConfig.Region
+                    var videoAudioStream = videoFrameStream.Join(
+                        audioBufferStream,
+                        Reproducible.Nearest<AudioBuffer>(
+                            TimeSpan.FromSeconds(percepDurationInSeconds)
+                        )
                     );
-                    audioBufferStream.PipeTo(speechRecognizer);
-                    var percepStream = videoFrameStream
-                        .Join(
-                            audioBufferStream,
-                            Reproducible.Nearest<AudioBuffer>(
-                                TimeSpan.FromSeconds(percepDurationInSeconds)
-                            )
-                        )
-                        .Join(
-                            speechRecognizer,
-                            Reproducible.Nearest<string>(
-                                TimeSpan.FromSeconds(percepDurationInSeconds / 2)
-                            )
-                        )
-                        .Select(
-                            (tuple) =>
-                            {
-                                (var frame, var audioBuffer, var transcription) = tuple;
-
-                                var pixelData = new byte[frame.Resource.Size];
-                                frame.Resource.CopyTo(pixelData);
-                                var rawPixelFrame = new RawPixelImage(
-                                    pixelData,
-                                    frame.Resource.Width,
-                                    frame.Resource.Height,
-                                    frame.Resource.Stride
-                                );
-
-                                return new Perception(
-                                    rawPixelFrame,
-                                    new Audio(audioBuffer.Data),
-                                    new TranscribedText(transcription)
-                                );
-                            }
+                    IProducer<Perception> percepStream;
+                    Perception CreatePerception(
+                        Shared<Image> frame,
+                        AudioBuffer audioBuffer,
+                        string transcription = ""
+                    )
+                    {
+                        var pixelData = new byte[frame.Resource.Size];
+                        frame.Resource.CopyTo(pixelData);
+                        var rawPixelFrame = new RawPixelImage(
+                            pixelData,
+                            frame.Resource.Width,
+                            frame.Resource.Height,
+                            frame.Resource.Stride
                         );
+
+                        return new Perception(
+                            rawPixelFrame,
+                            new Audio(audioBuffer.Data),
+                            new TranscribedText(transcription)
+                        );
+                    }
+                    if (config.EnableStt)
+                    {
+                        ContinuousAzureSpeechRecognizer speechRecognizer;
+                        try
+                        {
+                            speechRecognizer = new ContinuousAzureSpeechRecognizer(
+                                percepSyncPipeline,
+                                config.AzureSpeechConfig.SubscriptionKey,
+                                config.AzureSpeechConfig.Region
+                            );
+                        }
+                        catch (Exception ex)
+                        {
+                            throw new Exception(
+                                $"Error while setting up Speech-to-Text:\n\n{ex}.\n\nPlease ensure that your Azure credentials are correct."
+                            );
+                        }
+                        audioBufferStream.PipeTo(speechRecognizer);
+                        percepStream = videoAudioStream
+                            .Join(
+                                speechRecognizer,
+                                Reproducible.Nearest<string>(
+                                    TimeSpan.FromSeconds(percepDurationInSeconds / 2)
+                                )
+                            )
+                            .Select(
+                                (tuple) =>
+                                    CreatePerception(
+                                        tuple.Item1,
+                                        tuple.Item2,
+                                        transcription: tuple.Item3
+                                    )
+                            );
+                    }
+                    else
+                    {
+                        percepStream = videoAudioStream.Select(
+                            (tuple) => CreatePerception(tuple.Item1, tuple.Item2)
+                        );
+                    }
                     var percepStreamMQWriter = new NetMQWriter<Perception>(
                         percepSyncPipeline,
                         PerceptionTopic,

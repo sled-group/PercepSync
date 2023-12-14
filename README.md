@@ -61,9 +61,9 @@ $ pip install -r samples/requirements.txt
 $ python samples/simple_subscriber.py
 ```
 
-### Text-to-speech
+### Text-to-speech and Speech-to-text
 
-You can enable text-to-speech by passing the `--enable-tts` option. `PercepSync` relies on [Microsoft Azure Speech Service](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/speech-sdk) to generate speech, so make sure you also pass in your Azure credentials via a config file. In the local mode, the speech will be played via the speaker, while in the HoloLens mode, the speech will be played on the HoloLens.
+You can enable text-to-speech and speech-to-text by passing the `--enable-tts` and `--enable-stt` options. `PercepSync` relies on [Microsoft Azure Speech Service](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/speech-sdk) to handle speech, so make sure you also pass in your Azure credentials via a config file. In the local mode, the speech will be played via the speaker, while in the HoloLens mode, the speech will be played on the HoloLens.
 
 **NOTE: Microsoft Azure Speech Service SDK relies on OpenSSL 1.x, which is no longer shipped with Ubuntu 22.04. As a result, you need to install OpenSSL 1.x from sources. Instructions can be found [here](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/quickstarts/setup-platform?tabs=linux%2Cubuntu%2Cdotnetcli%2Cdotnet%2Cjre%2Cmaven%2Cnodejs%2Cmac%2Cpypi&pivots=programming-language-csharp#platform-requirements). Please make sure you set the environment variable `SSL_CERT_DIR=/etc/ssl/certs`.**
 
@@ -80,15 +80,19 @@ $ ./PercepSync --config-file config.toml --enable-tts local
 $ ./PercepSync --config-file config.toml --enable-tts hololens
 ```
 
-Now in another terminal, run the sample script.
+Now in another terminal, run the sample scripts.
 
 ```bash
 # Install the required packages
 $ pip install -r samples/requirements.txt
 
-# Now, run it!
+# TTS
 $ python samples/simple_tts.py
 TTS Text: Hello, world!
+
+# SST
+$ python samples/simple_subscriber.py
+Transcribed Text: Hello, world!
 ```
 
 ## Configuration
