@@ -15,6 +15,9 @@ $ chmod +x PercepSync
 # Now, run it!
 $ ./PercepSync local
 
+# If it complains about missing libasound, install it by running the following command
+$ sudo apt install libasound2-dev
+
 # If you want the preview window specify --enable-preview
 $ ./PercepSync --enable-preview local
 ```
