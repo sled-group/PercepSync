@@ -36,7 +36,7 @@ $ python samples/simple_subscriber.py
 
 #### Quick Start
 
-You are expected to connect the hololens device with a Windows PC through Windows Device Portal. It can be found on the system setting of each side. You need to make sure that both sides have enabled the device portal before moving further. You need to make sure that both PC and the device are under the same Wi-Fi.
+You are expected to connect the HoloLens device with a Windows PC through Windows Device Portal. It can be found on the system setting of each side. You need to make sure that both sides have enabled the device portal before moving further. You need to make sure that both PC and the device are under the same Wi-Fi.
 
 Please follow the following links to do the setup:
 - For windows PC, check this [tutorial](https://learn.microsoft.com/en-us/windows/uwp/debug-test-perf/device-portal);
