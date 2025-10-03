@@ -40,7 +40,7 @@ You are expected to connect the HoloLens device with a Windows PC through Window
 
 Please follow the following links to do the setup:
 - For windows PC, check this [tutorial](https://learn.microsoft.com/en-us/windows/uwp/debug-test-perf/device-portal);
-- For Hololens 2, check this [tutorial](https://learn.microsoft.com/en-us/windows/mixed-reality/develop/advanced-concepts/using-the-windows-device-portal#setting-up-hololens-to-use-windows-device-portal) and read `# Connecting over Wi-Fi` section.
+- For HoloLens 2, check this [tutorial](https://learn.microsoft.com/en-us/windows/mixed-reality/develop/advanced-concepts/using-the-windows-device-portal#setting-up-hololens-to-use-windows-device-portal) and read `# Connecting over Wi-Fi` section.
 
 At the last step of setting up the hololens 2 above, you will find the local address of hololens (if there are multiple IP addresses there, check the one under "Wi-Fi" domain). Go to that IP address from a web browser on your PC, and use the browser username and password pinned in the slack channel, to login to the web portal of hololens2 on your PC.
 
