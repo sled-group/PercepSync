@@ -34,6 +34,18 @@ $ python samples/simple_subscriber.py
 
 ### HoloLens
 
+#### Quick Start
+
+You are expected to connect the HoloLens device with a Windows PC through Windows Device Portal. It can be found on the system setting of each side. You need to make sure that both sides have enabled the device portal before moving further. You need to make sure that both PC and the device are under the same Wi-Fi.
+
+Please follow the following links to do the setup:
+- For windows PC, check this [tutorial](https://learn.microsoft.com/en-us/windows/uwp/debug-test-perf/device-portal);
+- For HoloLens 2, check this [tutorial](https://learn.microsoft.com/en-us/windows/mixed-reality/develop/advanced-concepts/using-the-windows-device-portal#setting-up-hololens-to-use-windows-device-portal) and read `# Connecting over Wi-Fi` section.
+
+At the last step of setting up the hololens 2 above, you will find the local address of hololens (if there are multiple IP addresses there, check the one under "Wi-Fi" domain). Go to that IP address from a web browser on your PC, and use the browser username and password pinned in the slack channel, to login to the web portal of hololens2 on your PC.
+
+#### App Deploy
+
 First, install the latest version of `PercepSyncHoloLensCapture` from the [Releases page](https://github.com/sled-group/PercepSync/releases) and install it on your HoloLens 2 by following the steps below:
 
 1. Unzip the `PercepSyncHoloLensCapture` package.
@@ -41,7 +53,7 @@ First, install the latest version of `PercepSyncHoloLensCapture` from the [Relea
 3. Under the Deploy apps section, ensure that you're on the Local Storage tab and choose the `.msixbundle` file from the unzipped package.
 4. Press the install button.
 
-Once installed, run `PercepSyncHoloLensCapture`. It automatically places a default config file called `PercepSyncHoloLensCaptureConfig.toml` in the `Documents` folder if it's not already there. The config file is pretty self-explanatory. You can set the address for the `PercepSync` server, as well as pick and choose which sensor to turn on. Note that not all sensors are currently supported by `PercepSync`. You can download `PercepSyncHoloLensCaptureConfig.toml` using the Windows Device Portal (System > Device Manager), modify it as desired and then reupload it.
+Once installed, run `PercepSyncHoloLensCapture`. It automatically places a default config file called `PercepSyncHoloLensCaptureConfig.toml` in the `Documents` folder if it's not already there. The config file is pretty self-explanatory. You can set the address for the `PercepSync` server, as well as pick and choose which sensor to turn on. Note that not all sensors are currently supported by `PercepSync`. You can download `PercepSyncHoloLensCaptureConfig.toml` using the Windows Device Portal (System > File Explorer), modify it as desired and then reupload it.
 
 Once you're satisfied with your config, download the matching version of `PercepSync` from the [Releases page](https://github.com/sled-group/PercepSync/releases) and run it.
 
